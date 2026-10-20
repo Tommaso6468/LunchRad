@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+out-tsc/
+.angular/
+.wrangler/
+coverage/
+
+# Local env and secrets — never commit these
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# Logs
+npm-debug.log*
+*.log
+
+# Editors and OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
