@@ -1,0 +1,6 @@
+dist/
+.angular/
+.wrangler/
+coverage/
+package-lock.json
+worker/worker-configuration.d.ts
