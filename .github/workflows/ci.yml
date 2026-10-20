@@ -55,7 +55,13 @@ jobs:
       - name: Known vulnerabilities (high and critical fail the build)
         run: npm audit --audit-level=high
       - name: Registry signatures and provenance
-        run: npm audit signatures
+        run: |
+          if ! out=$(npm audit signatures 2>&1); then
+            # Surface the reason as annotations, visible on the PR.
+            echo "$out" | tail -20 | sed 's/^/::error::/'
+            exit 1
+          fi
+          echo "$out"
 
   dependency-review:
     name: Dependency review
