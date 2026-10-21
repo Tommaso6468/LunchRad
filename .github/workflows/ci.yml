@@ -63,18 +63,21 @@ jobs:
           fi
           echo "$out"
 
-  dependency-review:
-    name: Dependency review
-    if: github.event_name == 'pull_request'
+  # Replaces GitHub's Dependency review, which needs Advanced Security on a
+  # private personal repo. Fails on any known vulnerability in the lockfile,
+  # using the OSV database (broader than npm audit, which only fails on high).
+  osv:
+    name: Vulnerability scan (OSV)
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+      - uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
         with:
-          fail-on-severity: moderate
+          scan-args: |-
+            --lockfile=package-lock.json
 
   secrets:
     name: Secret scan

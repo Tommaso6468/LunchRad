@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Blocks a commit that contains a secret, before it ever reaches GitHub.
+# Stands in for GitHub push protection, which this private repo cannot use.
+# Install once per clone: npm run hooks:install  (needs gitleaks on your PATH)
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks not found. Install it (brew install gitleaks / winget install gitleaks)." >&2
+  echo "pre-commit: commit blocked so a secret cannot slip through unchecked." >&2
+  exit 1
+fi
+
+gitleaks git --pre-commit --staged --redact --no-banner

@@ -45,23 +45,32 @@ Target `main`, enforcement **Active**:
 - Require a pull request before merging (required approvals: **0**: GitHub
   does not let you approve your own PR, and you are the only maintainer)
 - Require status checks to pass, up to date with `main`:
-  `Lint, test, build`, `Dependency audit`, `Secret scan`, `Dependency review`,
+  `Lint, test, build`, `Dependency audit`, `Secret scan`, `Vulnerability scan (OSV)`,
   `Analyze (javascript-typescript)`, `Analyze (actions)`
 - Require linear history
 
 The checks only appear in the picker after they have run once on a PR.
 
-### Security (Settings → Code security)
+### Security (Settings → Advanced Security)
+
+The repo is private on a personal account, so GitHub code scanning, dependency
+review and secret push protection are not available (they need GitHub Team or
+Enterprise). CI covers them instead: CodeQL fails the build on findings,
+OSV-Scanner replaces dependency review, gitleaks runs in CI and as a local hook.
 
 - Dependency graph, **Dependabot alerts** and **Dependabot security updates**: on
-- **Secret scanning** and **Push protection**: on
-- **Private vulnerability reporting**: on
 - CodeQL: leave **default setup off**; the repo has its own workflow (`codeql.yml`)
+
+### Local secret check (every machine you commit from)
+
+Install [gitleaks](https://github.com/gitleaks/gitleaks), then in the repo run
+`npm run hooks:install`. Commits containing a secret are then blocked before
+they leave your machine. Without gitleaks installed, the hook blocks every commit.
 
 ### Actions (Settings → Actions → General)
 
 - Actions permissions: **Allow Tommaso6468, and select non-Tommaso6468, actions**:
-  allow actions created by GitHub, plus `gitleaks/gitleaks-action@*`
+  allow actions created by GitHub, plus `gitleaks/gitleaks-action@*` and `google/osv-scanner-action/*`
 - Fork pull request workflows: **Require approval for all external contributors**
 - Workflow permissions: **Read repository contents** (default token read-only),
   and leave "Allow GitHub Actions to create and approve pull requests" off
