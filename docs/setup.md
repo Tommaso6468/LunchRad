@@ -70,7 +70,7 @@ before anything leaves your machine, install
 ### Actions (Settings → Actions → General)
 
 - Actions permissions: **Allow Tommaso6468, and select non-Tommaso6468, actions**:
-  allow actions created by GitHub, plus `gitleaks/gitleaks-action@*` and `google/osv-scanner-action/*`
+  allow actions created by GitHub, plus `gitleaks/gitleaks-action@*`
 - Fork pull request workflows: **Require approval for all external contributors**
 - Workflow permissions: **Read repository contents** (default token read-only),
   and leave "Allow GitHub Actions to create and approve pull requests" off

@@ -88,10 +88,21 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
-        with:
-          scan-args: |-
-            --lockfile=package-lock.json
+      # The official binary, pinned by version and SHA-256. Runs without a
+      # third-party action, so nothing extra has to be allow-listed.
+      - name: Install OSV-Scanner v2.7.1
+        env:
+          OSV_VERSION: v2.7.1
+          OSV_SHA256: fb7dab19a8bd9bbe5c3189f09d4b7ee1820c9553a23bac202648a56efd2f6ee8
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/osv-scanner" \
+            "https://github.com/google/osv-scanner/releases/download/${OSV_VERSION}/osv-scanner_linux_amd64"
+          echo "${OSV_SHA256}  $RUNNER_TEMP/osv-scanner" | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/osv-scanner"
+      # Non-zero exit on any vulnerability, and also on scanner or network
+      # errors, so the check fails closed.
+      - name: Scan lockfile
+        run: '"$RUNNER_TEMP/osv-scanner" scan source --lockfile=package-lock.json'
 
   secrets:
     name: Secret scan
