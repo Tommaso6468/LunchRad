@@ -1,8 +1,7 @@
 name: CodeQL
 
-# The repo is private on a personal account, so results cannot be uploaded to
-# GitHub code scanning (that needs Advanced Security). Instead, CodeQL runs
-# here, the SARIF is kept as a build artifact, and the job fails on any finding.
+# Results go to the Security tab (code scanning) and the job also fails on
+# any finding, so a PR cannot merge with an open CodeQL alert.
 
 on:
   pull_request:
@@ -23,6 +22,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      security-events: write
     strategy:
       fail-fast: false
       matrix:
@@ -38,7 +38,6 @@ jobs:
       - uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
         with:
           category: /language:${{ matrix.language }}
-          upload: never
           output: codeql-results
       - name: Fail on findings
         env:

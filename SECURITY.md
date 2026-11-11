@@ -6,8 +6,9 @@ exploit with automated tooling. Security is a release gate, not an afterthought.
 
 ## Reporting a vulnerability
 
-This repository is private. If you have access and find a vulnerability,
-tell the owner directly; do not post details in an issue or PR.
+Use GitHub's **private vulnerability reporting** on this repository
+(Security → Report a vulnerability). Do not open a public issue.
+Expect a response within 7 days.
 
 ## Rules for this codebase
 
@@ -22,10 +23,10 @@ These are enforced by CI where possible.
 | Security headers on every response, including static assets                                                          | Worker tests (incl. `_headers` drift check) |
 | Every request body and WebSocket message is validated with a Zod schema, has a size limit and a rate limit (from M1) | Code review, PR checklist                   |
 | Roles (host, admin) are checked on the server only; the client is never trusted                                      | Code review, abuse tests                    |
-| No secrets in the repo; secrets live in GitHub environment secrets and Wrangler secrets                              | gitleaks in CI + local pre-commit hook      |
+| No secrets in the repo; secrets live in GitHub environment secrets and Wrangler secrets                              | gitleaks, GitHub push protection            |
 | Errors to clients are generic Dutch messages; logs contain no tokens, keys or full IPs                               | Code review                                 |
-| Dependencies: no known high/critical vulnerabilities, registry signatures verified                                   | `npm audit`, OSV-Scanner, Dependabot        |
-| GitHub Actions pinned to commit SHAs, least-privilege permissions, no persisted credentials                          | CodeQL (actions, fails CI on findings)      |
+| Dependencies: no known high/critical vulnerabilities, registry signatures verified                                   | `npm audit`, OSV, dependency review         |
+| GitHub Actions pinned to commit SHAs, least-privilege permissions, no persisted credentials                          | CodeQL (actions), review                    |
 | Production deploys only from a semver release tag on `main`, after full re-verification and manual approval          | `deploy-production.yml`, GitHub environment |
 
 ## Secure development lifecycle
