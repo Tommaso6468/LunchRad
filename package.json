@@ -1,0 +1,41 @@
+{
+  "name": "lunchrad",
+  "private": true,
+  "description": "Lunchrad: a realtime lunch wheel for small teams",
+  "license": "UNLICENSED",
+  "workspaces": [
+    "shared",
+    "worker",
+    "app"
+  ],
+  "engines": {
+    "node": "^24.15.0"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check:forbidden": "node scripts/check-forbidden.mjs",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build -w app",
+    "dev": "npm run build -w app && npm run dev -w worker",
+    "verify": "npm run lint && npm run format:check && npm run check:forbidden && npm run typecheck && npm run test && npm run build",
+    "hooks:install": "git config core.hooksPath scripts/hooks"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "angular-eslint": "^22.6.0",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
+    "prettier": "^3.8.1",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.72.0"
+  },
+  "overrides": {
+    "vite": {
+      ".": "^8.3.5",
+      "rolldown": "1.2.14"
+    }
+  }
+}

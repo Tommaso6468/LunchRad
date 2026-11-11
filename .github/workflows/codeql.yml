@@ -1,0 +1,62 @@
+name: CodeQL
+
+# The repo is private on a personal account, so results cannot be uploaded to
+# GitHub code scanning (that needs Advanced Security). Instead, CodeQL runs
+# here, the SARIF is kept as a build artifact, and the job fails on any finding.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly re-scan with updated queries, Monday 06:17 UTC.
+    - cron: '17 6 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+      - uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          category: /language:${{ matrix.language }}
+          upload: never
+          output: codeql-results
+      - name: Fail on findings
+        env:
+          LANGUAGE: ${{ matrix.language }}
+        run: |
+          count=0
+          for f in codeql-results/*.sarif; do
+            n=$(jq '[.runs[].results[]] | length' "$f")
+            count=$((count + n))
+            jq -r '.runs[].results[] |
+              "::error file=\(.locations[0].physicalLocation.artifactLocation.uri // ""),line=\(.locations[0].physicalLocation.region.startLine // 1)::[\(.ruleId)] \(.message.text)"' "$f"
+          done
+          echo "CodeQL ($LANGUAGE): $count finding(s)"
+          [ "$count" -eq 0 ]
+      - name: Keep SARIF for review
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: codeql-${{ matrix.language }}
+          path: codeql-results
+          retention-days: 14

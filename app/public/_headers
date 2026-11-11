@@ -1,0 +1,13 @@
+# Security headers for static assets served directly by Cloudflare
+# (JS, CSS, images, fonts). The HTML shell is served by the Worker, which sets
+# the same baseline plus a nonce-based CSP. Keep both in sync: a test in
+# worker/test/headers-file.test.ts fails when they drift.
+/*
+  Strict-Transport-Security: max-age=63072000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), browsing-topics=()
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+  Content-Security-Policy: default-src 'none'; frame-ancestors 'none'; base-uri 'none'

@@ -1,0 +1,81 @@
+/* Self-hosted: IBM Plex Mono has a dotted zero, used for room codes. */
+@import '@fontsource/ibm-plex-mono/latin-600.css';
+
+:root {
+  color-scheme: light dark;
+
+  --bg: #f6f1e7;
+  --surface: #fffdf8;
+  --text: #1c1a17;
+  --text-muted: #5f5850;
+  --accent: #c2410c;
+  --code-letter: #1c1a17;
+  --code-digit: #c2410c;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 1rem;
+  --space-4: 1.5rem;
+  --radius: 0.75rem;
+
+  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-code: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1a17;
+    --surface: #26231f;
+    --text: #f6f1e7;
+    --text-muted: #b8afa3;
+    --accent: #fb923c;
+    --code-letter: #f6f1e7;
+    --code-digit: #fb923c;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Room code: digits differ from letters in colour AND carry an underline,
+   so the distinction does not rely on colour alone. */
+.room-code {
+  font-family: var(--font-code);
+  font-size: 2rem;
+  letter-spacing: 0.15em;
+  margin: var(--space-2) 0 0;
+}
+
+.room-code .letter {
+  color: var(--code-letter);
+  font-weight: 600;
+}
+
+.room-code .digit {
+  color: var(--code-digit);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
