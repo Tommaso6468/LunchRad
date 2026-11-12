@@ -11,13 +11,13 @@
     "deploy:production": "wrangler deploy --env production"
   },
   "dependencies": {
-    "hono": "^4.13.0"
+    "hono": "^4.13.17"
   },
   "devDependencies": {
-    "@cloudflare/vitest-plugin": "^1.4.6",
+    "@cloudflare/vitest-plugin": "^1.6.1",
     "@cloudflare/workers-types": "^5.20261019.1",
     "typescript": "~6.0.2",
-    "vitest": "^5.0.0",
+    "vitest": "^5.1.0",
     "wrangler": "^4.151.0"
   }
 }
