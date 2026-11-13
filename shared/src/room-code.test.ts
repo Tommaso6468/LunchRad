@@ -5,7 +5,7 @@ import {
   classifyRoomCode,
   generateRoomCode,
   normalizeRoomCode,
-} from './room-code.ts';
+} from './room-code';
 
 describe('room code alphabet', () => {
   it('has 32 unique characters, so byte masking is unbiased', () => {

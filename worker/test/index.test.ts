@@ -1,34 +1,8 @@
-import { createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
-import worker, { type Env } from '../src/index.ts';
-import { BASELINE_HEADERS } from '../src/security.ts';
+import { API_CSP, BASELINE_HEADERS } from '../src/security.ts';
+import { call, makeEnv } from './helpers.ts';
 
-const SHELL_HTML = `<!doctype html><html lang="nl"><head>
-<link rel="stylesheet" href="styles-ABC.css"></head>
-<body><app-root></app-root><script src="main-XYZ.js" type="module"></script></body></html>`;
-
-function makeEnv(assetStatus = 200): Env {
-  return {
-    ENVIRONMENT: 'test',
-    ASSETS: {
-      fetch: async () =>
-        new Response(assetStatus === 200 ? SHELL_HTML : 'missing', {
-          status: assetStatus,
-          headers: { 'Content-Type': 'text/html' },
-        }),
-      connect: () => {
-        throw new Error('not used');
-      },
-    } as unknown as Fetcher,
-  };
-}
-
-async function request(path: string, init?: RequestInit, env = makeEnv()): Promise<Response> {
-  const ctx = createExecutionContext();
-  const response = await worker.fetch(new Request(`https://lunchrad.test${path}`, init), env, ctx);
-  await waitOnExecutionContext(ctx);
-  return response;
-}
+const request = (path: string, init?: RequestInit, env = makeEnv()) => call(path, init ?? {}, env);
 
 function nonceFromCsp(csp: string): string {
   const match = /'nonce-([^']+)'/.exec(csp);
@@ -68,6 +42,25 @@ describe('app shell', () => {
     expect(csp).not.toContain('unsafe-eval');
   });
 
+  it('allows only Turnstile as third party, and the WebSocket to our own host', async () => {
+    const csp = (await request('/')).headers.get('Content-Security-Policy') ?? '';
+    const directives = Object.fromEntries(
+      csp.split('; ').map((d) => [d.split(' ')[0], d.split(' ').slice(1)]),
+    );
+    expect(directives['script-src']).toEqual([
+      "'self'",
+      expect.stringMatching(/^'nonce-/),
+      'https://challenges.cloudflare.com',
+    ]);
+    expect(directives['frame-src']).toEqual(['https://challenges.cloudflare.com']);
+    expect(directives['connect-src']).toEqual(["'self'", 'wss://lunchrad.test']);
+    expect(directives['trusted-types']).toEqual([
+      'angular',
+      'angular#bundler',
+      'lunchrad#turnstile',
+    ]);
+  });
+
   it('is never cacheable', async () => {
     expect((await request('/')).headers.get('Cache-Control')).toBe('no-store');
   });
@@ -85,9 +78,9 @@ describe('app shell', () => {
   });
 
   it('returns a generic 500 when the shell asset is missing', async () => {
-    const res = await request('/', undefined, makeEnv(404));
+    const res = await request('/', undefined, makeEnv({}, 404));
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: 'Er ging iets mis' });
+    expect(await res.json()).toEqual({ error: 'server_error' });
   });
 });
 
@@ -102,9 +95,8 @@ describe('API', () => {
   it('returns JSON 404 for unknown API routes', async () => {
     const res = await request('/api/does-not-exist');
     expect(res.status).toBe(404);
-    expect(res.headers.get('Content-Security-Policy')).toBe(
-      "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
-    );
+    expect(res.headers.get('Content-Security-Policy')).toBe(API_CSP);
+    expect(await res.json()).toEqual({ error: 'not_found' });
   });
 
   it('rejects methods the shell does not support', async () => {

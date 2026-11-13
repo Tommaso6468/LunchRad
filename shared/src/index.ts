@@ -5,4 +5,6 @@ export {
   normalizeRoomCode,
   classifyRoomCode,
   type RoomCodeCharKind,
-} from './room-code.ts';
+} from './room-code';
+export { NAME_MAX_LENGTH, normalizeName, nameKey } from './names';
+export * from './protocol';

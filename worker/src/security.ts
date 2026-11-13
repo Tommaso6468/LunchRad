@@ -23,16 +23,24 @@ export const API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'no
  * CSP for the app shell. Angular injects component styles at runtime, so
  * styles need the per-request nonce (picked up via the ngCspNonce attribute).
  * No 'unsafe-inline', no 'unsafe-eval'. Trusted Types restrict DOM sinks to
- * Angular's own policies.
+ * Angular's own policies plus one that only allows the Turnstile script URL.
+ *
+ * Turnstile (bot check on room creation) loads from challenges.cloudflare.com
+ * and renders in an iframe from there. The WebSocket goes to our own host;
+ * wss: is listed explicitly because older Safari does not match it to 'self'.
  */
-export function shellCsp(nonce: string): string {
+export const TURNSTILE_ORIGIN = 'https://challenges.cloudflare.com';
+export const TURNSTILE_TT_POLICY = 'lunchrad#turnstile';
+
+export function shellCsp(nonce: string, host: string): string {
   return [
     "default-src 'none'",
-    `script-src 'self' 'nonce-${nonce}'`,
+    `script-src 'self' 'nonce-${nonce}' ${TURNSTILE_ORIGIN}`,
     `style-src 'self' 'nonce-${nonce}'`,
     "img-src 'self' data:",
     "font-src 'self'",
-    "connect-src 'self'",
+    `connect-src 'self' wss://${host}`,
+    `frame-src ${TURNSTILE_ORIGIN}`,
     "manifest-src 'self'",
     "worker-src 'self'",
     // Angular routing needs <base href="/">; 'self' still blocks foreign bases.
@@ -41,7 +49,7 @@ export function shellCsp(nonce: string): string {
     "frame-ancestors 'none'",
     "object-src 'none'",
     "require-trusted-types-for 'script'",
-    'trusted-types angular angular#bundler',
+    `trusted-types angular angular#bundler ${TURNSTILE_TT_POLICY}`,
     'upgrade-insecure-requests',
   ].join('; ');
 }

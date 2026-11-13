@@ -35,6 +35,8 @@ export default tseslint.config(
         { property: 'outerHTML', message: 'Raw HTML is banned (XSS). Bind text instead.' },
         { property: 'insertAdjacentHTML', message: 'Raw HTML is banned (XSS).' },
       ],
+      // Angular components are decorated classes and may have no members.
+      '@typescript-eslint/no-extraneous-class': ['error', { allowWithDecorator: true }],
       'no-eval': 'error',
       'no-implied-eval': 'error',
       'no-new-func': 'error',
