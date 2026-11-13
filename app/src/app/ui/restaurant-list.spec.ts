@@ -26,6 +26,8 @@ const state: RoomState = {
     },
     { id: PHO, name: 'Pho 99', categories: [], mapsUrl: null, addedBy: TOM },
   ],
+  phase: 'lobby',
+  spin: null,
 };
 
 async function render(you: string, isHost: boolean) {
@@ -60,6 +62,21 @@ describe('RestaurantList', () => {
   it('lets participants remove only their own restaurants, the host all of them', async () => {
     expect((await render(TOM, false)).querySelectorAll('.remove')).toHaveLength(1);
     expect((await render(SANNE, true)).querySelectorAll('.remove')).toHaveLength(2);
+  });
+
+  it('locks boosts, removal and adding once the spin has started', async () => {
+    const fixture = TestBed.createComponent(RestaurantList);
+    fixture.componentRef.setInput('state', state);
+    fixture.componentRef.setInput('you', SANNE);
+    fixture.componentRef.setInput('isHost', true);
+    fixture.componentRef.setInput('locked', true);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(
+      [...el.querySelectorAll<HTMLButtonElement>('button.boost')].every((b) => b.disabled),
+    ).toBe(true);
+    expect(el.querySelectorAll('.remove')).toHaveLength(0);
+    expect(el.querySelector('button.add')).toBeNull();
   });
 
   it('opens Maps links in a new tab without leaking the page', async () => {

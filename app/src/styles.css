@@ -23,6 +23,8 @@
   --ink-on-brass: #123029;
   --danger: #b3162b;
   --focus: #1060d0;
+  --drum-edge: #b9d3c6;
+  --ticket-glow: rgb(215 38 61 / 0.1);
 
   --font-display: 'Bagel Fat One', 'Arial Rounded MT Bold', system-ui, sans-serif;
   --font-body: 'Atkinson Hyperlegible Next', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -49,6 +51,8 @@
     --ink-on-brass: #123029;
     --danger: #ff6b7d;
     --focus: #7fb4ff;
+    --drum-edge: #0f2a24;
+    --ticket-glow: rgb(226 59 81 / 0.18);
   }
 }
 
@@ -364,6 +368,110 @@ button.small.danger {
 .room-foot {
   display: flex;
   justify-content: flex-start;
+}
+
+/* Read by screen readers, not shown. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- Spin bar and reel overlay ---------- */
+
+.spin-bar {
+  position: sticky;
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  background: var(--ink);
+  color: var(--bg);
+  border-radius: 1rem;
+}
+
+.spin-bar p {
+  flex: 1;
+  font-size: 0.9rem;
+}
+
+.spin-bar .primary {
+  border-color: var(--bg);
+  box-shadow: 0 4px 0 var(--bg);
+}
+
+.reel-dialog {
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  max-height: 100%;
+  margin: 0;
+  padding: max(var(--space-4), env(safe-area-inset-top)) var(--space-3) var(--space-4);
+  border: 0;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.reel-dialog::backdrop {
+  background: var(--bg);
+}
+
+.reel-dialog .inner {
+  max-width: 28rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.result-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-3);
+  background: var(--surface);
+  border: 3px solid var(--ink);
+  border-radius: 1rem;
+  box-shadow: 0 6px 0 var(--ticket);
+  animation: land 260ms ease-out;
+}
+
+.result-card .winner {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(2rem, 10vw, 2.6rem);
+  line-height: 1.05;
+  color: var(--ticket);
+  overflow-wrap: anywhere;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tags li {
+  padding: 0 0.5rem;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@keyframes land {
+  from {
+    transform: scale(0.94);
+    opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

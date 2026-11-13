@@ -1,6 +1,6 @@
 # Threat model
 
-Version 3 — M2 (13 November 2026). Update this file in every milestone that
+Version 4 — M3 (13 November 2026). Update this file in every milestone that
 changes the attack surface.
 
 ## Assets
@@ -28,10 +28,11 @@ changes the attack surface.
 | S2  | Spoofing               | Someone joins under a colleague's name                    | Unique names per room (case-insensitive, NFC); host kick                                                                                | M1 ✓       |
 | S4  | Spoofing               | Brute-forcing the shared team key                         | 10 attempts/min/IP, constant-time compare, minimum length enforced, guidance for a long random key                                      | M1 ✓       |
 | S3  | Spoofing               | Forged admin request                                      | Worker validates the Cloudflare Access JWT signature, audience and issuer                                                               | M5         |
-| T1  | Tampering              | Client claims host role or sends a winner                 | Roles and winner exist only server-side; every message checked against the token's role                                                 | M1 ✓, M3   |
+| T1  | Tampering              | Client claims host role or sends a winner                 | Roles and winner exist only server-side; `start_spin` has no parameters; winner from `crypto.getRandomValues` with rejection sampling   | M1 ✓, M3 ✓ |
 | T4  | Tampering              | Forged or replayed team session / Turnstile token         | HMAC-signed session with expiry and key fingerprint; Turnstile verified server-side, single-use, hostname + action checked              | M1 ✓       |
 | T2  | Tampering              | Malicious code reaches production via CI                  | Actions pinned to SHAs, read-only permissions, prod only from tags on `main`, manual approval                                           | M0         |
 | T3  | Tampering              | Compromised npm dependency                                | Lockfile, `npm audit`, signature verification, OSV-Scanner, dependency review, Dependabot, minimal dependencies                         | M0         |
+| T7  | Tampering              | Changing the odds after the lever is pulled               | List and boosts locked server-side from `start_spin` until the room closes; reel fixed in room storage                                  | M3 ✓       |
 | R1  | Repudiation            | Preset deleted, nobody knows by whom                      | Admin audit log in D1                                                                                                                   | M5         |
 | I1  | Information disclosure | Room state leaks to non-members                           | WebSocket requires team session + participant token; no room listing; tokens never sent to other clients                                | M1 ✓       |
 | I4  | Information disclosure | Probing which room codes exist                            | Without a team session every room route answers 401 before any room lookup                                                              | M1 ✓       |
@@ -57,5 +58,7 @@ changes the attack surface.
   a single page; any script from that Cloudflare origin is allowed.
 - **M2 (done):** restaurant names, categories and Maps links are user input;
   see T5, T6, D2.
-- **M3:** the spin result must come from the server's CSPRNG, and boosts must
-  be locked once the spin starts.
+- **M3 (done):** see T1 and T7. The reel order is cosmetic; a test checks
+  that 1 000 spins match the odds.
+- **M4:** votes must be one per participant, counted only from connected
+  participants at vote start, and the vote must end on the server's timer.

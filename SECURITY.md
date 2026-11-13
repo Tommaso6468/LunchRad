@@ -22,6 +22,7 @@ These are enforced by CI where possible.
 | Strict CSP: per-request nonce, no `unsafe-inline`/`unsafe-eval`, Trusted Types                                   | Worker tests + post-deploy smoke test       |
 | Security headers on every response, including static assets                                                      | Worker tests (incl. `_headers` drift check) |
 | Every request body and WebSocket message is validated with a Zod schema, has a size limit and a rate limit       | Shared schemas, Worker tests                |
+| The spin result is decided once, on the server, with the CSPRNG; the client only animates towards it             | Worker tests (incl. 1 000-spin odds test)   |
 | Links are only accepted to Google Maps (https, allow-listed hosts and paths) and open with `noopener noreferrer` | Shared + Worker + app tests                 |
 | Every room route needs the team session; WebSockets also need the participant token in the first message         | Worker tests                                |
 | Secrets missing or too weak: the API answers 503, never a default                                                | Worker tests                                |
