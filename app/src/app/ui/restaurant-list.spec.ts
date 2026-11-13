@@ -27,6 +27,9 @@ const state: RoomState = {
     { id: PHO, name: 'Pho 99', categories: [], mapsUrl: null, addedBy: TOM },
   ],
   phase: 'lobby',
+  respinsLeft: 3,
+  vote: null,
+  closesInMs: null,
   spin: null,
 };
 

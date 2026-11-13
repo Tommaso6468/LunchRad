@@ -172,12 +172,20 @@ import { TeamKeyForm } from './team-key-form';
             #spinOverlay
             [state]="state"
             [isHost]="conn.isHost()"
+            [you]="conn.you()"
             (pull)="startSpin()"
+            (vote)="vote($event)"
           />
           <div class="spin-bar">
             <p>{{ spinBarText(state.phase, conn.isHost()) }}</p>
             <button type="button" class="primary" (click)="spinOverlay.open()">
-              {{ state.phase === 'result' ? t.reel.openResult : t.reel.open }}
+              {{
+                state.phase === 'result'
+                  ? t.reel.openResult
+                  : state.phase === 'voting'
+                    ? t.reel.openVote
+                    : t.reel.open
+              }}
             </button>
           </div>
 
@@ -244,10 +252,19 @@ export class Room {
   private readonly now = signal(Date.now());
   private warnedClosingSoon = false;
 
-  protected readonly minutesLeft = computed(() => {
+  /** When the room closes: its 30-minute lifetime, or 5 minutes after the final result. */
+  private readonly closesAt = computed(() => {
     const state = this.connection()?.state();
     if (!state) return null;
-    return Math.max(1, Math.ceil((state.expiresAt - this.now()) / 60_000));
+    return state.closesInMs === null
+      ? state.expiresAt
+      : Math.min(state.expiresAt, Date.now() + state.closesInMs);
+  });
+
+  protected readonly minutesLeft = computed(() => {
+    const closesAt = this.closesAt();
+    if (closesAt === null) return null;
+    return Math.max(1, Math.ceil((closesAt - this.now()) / 60_000));
   });
 
   constructor() {
@@ -328,12 +345,17 @@ export class Room {
 
   protected spinBarText(phase: string, isHost: boolean): string {
     if (phase === 'spinning') return nl.reel.spinning;
+    if (phase === 'voting') return nl.vote.barText;
     if (phase === 'result') return '';
     return isHost ? nl.reel.hostHint : nl.reel.waiting;
   }
 
   protected startSpin(): void {
     this.connection()?.send({ type: 'start_spin' });
+  }
+
+  protected vote(choice: 'yes' | 'no'): void {
+    this.connection()?.send({ type: 'vote', choice });
   }
 
   protected toggleBoost(restaurantId: string | null): void {
@@ -429,6 +451,13 @@ export class Room {
         }
         break;
       }
+      case 'vote_ended':
+        this.toasts.show(
+          event.respin
+            ? nl.toasts.respin(event.removedName ?? '')
+            : nl.toasts.noRespin(event.yes, event.eligible),
+        );
+        break;
     }
   }
 
@@ -441,9 +470,11 @@ export class Room {
   }
 
   private warnIfClosingSoon(): void {
+    const closesAt = this.closesAt();
     const state = this.connection()?.state();
-    if (!state || this.warnedClosingSoon) return;
-    const left = state.expiresAt - Date.now();
+    // After the final result the room closes in 5 minutes by design; the result card says so.
+    if (closesAt === null || this.warnedClosingSoon || state?.phase === 'result') return;
+    const left = closesAt - Date.now();
     if (left > 0 && left <= 5 * 60_000) {
       this.warnedClosingSoon = true;
       this.toasts.show(nl.toasts.closingSoon);
