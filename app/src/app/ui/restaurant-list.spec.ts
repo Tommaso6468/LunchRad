@@ -20,11 +20,11 @@ const state: RoomState = {
     {
       id: WOK,
       name: 'Wok To Go',
-      category: 'Chinees',
+      categories: ['Chinees', 'Noedels'],
       mapsUrl: 'https://maps.app.goo.gl/x',
       addedBy: null,
     },
-    { id: PHO, name: 'Pho 99', category: null, mapsUrl: null, addedBy: TOM },
+    { id: PHO, name: 'Pho 99', categories: [], mapsUrl: null, addedBy: TOM },
   ],
 };
 
@@ -43,6 +43,12 @@ describe('RestaurantList', () => {
     const odds = [...el.querySelectorAll('.odds')].map((o) => o.textContent?.trim());
     expect(odds).toEqual(['3/4', '1/4']);
     expect(el.textContent).toContain('Boost van Sanne, Tom');
+  });
+
+  it('shows every food type as its own tag', async () => {
+    const el = await render(TOM, false);
+    const tags = [...el.querySelectorAll('.r-categories li')].map((t) => t.textContent);
+    expect(tags).toEqual(['Chinees', 'Noedels']);
   });
 
   it('marks your own boost as pressed', async () => {

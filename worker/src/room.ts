@@ -14,7 +14,7 @@ import {
   WS_PROTOCOL,
   clientMessage,
   nameKey,
-  normalizeCategory,
+  normalizeCategories,
   normalizeMapsUrl,
   normalizeName,
   normalizeRestaurantName,
@@ -54,7 +54,7 @@ interface Participant {
 interface Restaurant {
   id: string;
   name: string;
-  category: string | null;
+  categories: string[];
   mapsUrl: string | null;
   /** Participant who added it; null for preset restaurants. */
   addedBy: string | null;
@@ -369,8 +369,8 @@ export class Room extends DurableObject<Env> {
   ): Promise<void> {
     const name = normalizeRestaurantName(msg.name);
     if (!name) return this.reject(ws, 'invalid_restaurant');
-    const category = normalizeCategory(msg.category);
-    if (category === undefined) return this.reject(ws, 'invalid_category');
+    const categories = normalizeCategories(msg.categories);
+    if (categories === undefined) return this.reject(ws, 'invalid_category');
     const mapsUrl = normalizeMapsUrl(msg.mapsUrl);
     if (mapsUrl === undefined) return this.reject(ws, 'invalid_maps_url');
     if (this.restaurants.size >= LIMITS.maxRestaurants) {
@@ -383,7 +383,7 @@ export class Room extends DurableObject<Env> {
     const restaurant: Restaurant = {
       id: randomId(),
       name,
-      category,
+      categories,
       mapsUrl,
       addedBy: pid,
       addedAt: this.now(),
@@ -453,14 +453,14 @@ export class Room extends DurableObject<Env> {
     let order = 0;
     for (const seed of SEED_RESTAURANTS.slice(0, LIMITS.maxRestaurants)) {
       const name = normalizeRestaurantName(seed.name);
-      const category = normalizeCategory(seed.category);
+      const categories = normalizeCategories(seed.categories);
       const mapsUrl = normalizeMapsUrl(seed.mapsUrl);
       // Invalid seed entries are skipped, never stored unchecked.
-      if (!name || category === undefined || mapsUrl === undefined) continue;
+      if (!name || categories === undefined || mapsUrl === undefined) continue;
       await this.putRestaurant({
         id: randomId(),
         name,
-        category,
+        categories,
         mapsUrl,
         addedBy: null,
         addedAt: now + order++,
@@ -637,7 +637,7 @@ export class Room extends DurableObject<Env> {
         .map((r) => ({
           id: r.id,
           name: r.name,
-          category: r.category,
+          categories: r.categories,
           mapsUrl: r.mapsUrl,
           addedBy: r.addedBy,
         })),

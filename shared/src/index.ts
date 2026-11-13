@@ -11,8 +11,9 @@ export * from './protocol';
 export {
   CATEGORY_MAX,
   MAPS_URL_MAX,
+  MAX_CATEGORIES,
   RESTAURANT_NAME_MAX,
-  normalizeCategory,
+  normalizeCategories,
   normalizeMapsUrl,
   normalizeRestaurantName,
   restaurantKey,

@@ -5,7 +5,7 @@ import { nl } from '../i18n/nl';
 interface Row {
   id: string;
   name: string;
-  category: string | null;
+  categories: string[];
   mapsUrl: string | null;
   slices: number;
   boosters: string[];
@@ -34,8 +34,12 @@ interface Row {
             <li [class.mine]="r.boostedByYou">
               <div class="what">
                 <span class="r-name">{{ r.name }}</span>
-                @if (r.category) {
-                  <span class="r-category">{{ r.category }}</span>
+                @if (r.categories.length) {
+                  <ul class="r-categories" [attr.aria-label]="t.categoriesLabel">
+                    @for (c of r.categories; track c) {
+                      <li>{{ c }}</li>
+                    }
+                  </ul>
                 }
                 @if (r.boosters.length) {
                   <span class="r-boosters">{{ t.boostedBy(r.boosters) }}</span>
@@ -103,14 +107,14 @@ interface Row {
       margin: 0.25rem 0 0;
       padding: 0;
     }
-    li {
+    .restaurants > li {
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
       padding: 0.75rem 0;
       border-top: 1px solid var(--line);
     }
-    li:first-child {
+    .restaurants > li:first-child {
       border-top: 0;
     }
     .what {
@@ -123,9 +127,22 @@ interface Row {
       font-size: 1.1rem;
       overflow-wrap: anywhere;
     }
-    .r-category,
-    .r-boosters {
+    .r-categories {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      list-style: none;
+      margin: 0.2rem 0 0.1rem;
+      padding: 0;
+    }
+    .r-categories li {
+      padding: 0 0.5rem;
+      border: 1.5px solid var(--line);
+      border-radius: 999px;
       color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .r-boosters {
       font-size: 0.9rem;
     }
     .r-boosters {
@@ -211,7 +228,7 @@ export class RestaurantList {
       return {
         id: r.id,
         name: r.name,
-        category: r.category,
+        categories: r.categories,
         mapsUrl: r.mapsUrl,
         slices: 1 + boosters.length,
         boosters: boosters.map((p) => p.name),

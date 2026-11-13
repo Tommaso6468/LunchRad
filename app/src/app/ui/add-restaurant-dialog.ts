@@ -9,8 +9,9 @@ import {
 import {
   CATEGORY_MAX,
   MAPS_URL_MAX,
+  MAX_CATEGORIES,
   RESTAURANT_NAME_MAX,
-  normalizeCategory,
+  normalizeCategories,
   normalizeMapsUrl,
   normalizeRestaurantName,
 } from '@lunchrad/shared';
@@ -19,7 +20,7 @@ import { bindInput } from './forms';
 
 export interface NewRestaurant {
   name: string;
-  category: string | null;
+  categories: string[];
   mapsUrl: string | null;
 }
 
@@ -133,7 +134,8 @@ export class AddRestaurantDialog {
   protected readonly categories = nl.restaurants.categories;
   protected readonly limits = {
     name: RESTAURANT_NAME_MAX,
-    category: CATEGORY_MAX,
+    // Comma-separated: room for every food type plus ", " between them.
+    category: (CATEGORY_MAX + 2) * MAX_CATEGORIES,
     maps: MAPS_URL_MAX,
   };
   /** Typing in any field clears the previous error. */
@@ -178,11 +180,11 @@ export class AddRestaurantDialog {
     event.preventDefault();
     const name = normalizeRestaurantName(this.name());
     if (!name) return this.error.set('name');
-    const category = normalizeCategory(this.category());
-    if (category === undefined) return this.error.set('category');
+    const categories = normalizeCategories(this.category());
+    if (categories === undefined) return this.error.set('category');
     const mapsUrl = normalizeMapsUrl(this.mapsUrl());
     if (mapsUrl === undefined) return this.error.set('maps');
-    this.added.emit({ name, category, mapsUrl });
+    this.added.emit({ name, categories, mapsUrl });
     this.close();
   }
 }

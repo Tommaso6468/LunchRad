@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeCategory, normalizeMapsUrl, normalizeRestaurantName } from './restaurants';
+import { normalizeCategories, normalizeMapsUrl, normalizeRestaurantName } from './restaurants';
 
 describe('normalizeRestaurantName', () => {
   it('accepts real-world names', () => {
@@ -31,16 +31,27 @@ describe('normalizeRestaurantName', () => {
   });
 });
 
-describe('normalizeCategory', () => {
+describe('normalizeCategories', () => {
   it('is optional', () => {
-    expect(normalizeCategory(undefined)).toBeNull();
-    expect(normalizeCategory('  ')).toBeNull();
-    expect(normalizeCategory('Italiaanse broodjes')).toBe('Italiaanse broodjes');
+    expect(normalizeCategories(undefined)).toEqual([]);
+    expect(normalizeCategories('  ')).toEqual([]);
+    expect(normalizeCategories([])).toEqual([]);
   });
 
-  it('marks invalid input as undefined', () => {
-    expect(normalizeCategory('<script>')).toBeUndefined();
-    expect(normalizeCategory('a'.repeat(31))).toBeUndefined();
+  it('accepts a list or comma-separated text, cleaned and de-duplicated', () => {
+    expect(normalizeCategories('Koreaans, Broodjes')).toEqual(['Koreaans', 'Broodjes']);
+    expect(normalizeCategories(['Italiaanse  broodjes'])).toEqual(['Italiaanse broodjes']);
+    expect(normalizeCategories('Chinees, chinees,, ')).toEqual(['Chinees']);
+  });
+
+  it('allows at most 3 food types of 30 characters', () => {
+    expect(normalizeCategories('A, B, C')).toEqual(['A', 'B', 'C']);
+    expect(normalizeCategories('A, B, C, D')).toBeUndefined();
+    expect(normalizeCategories(['a'.repeat(31)])).toBeUndefined();
+  });
+
+  it('rejects markup in any entry', () => {
+    expect(normalizeCategories(['Chinees', '<script>'])).toBeUndefined();
   });
 });
 

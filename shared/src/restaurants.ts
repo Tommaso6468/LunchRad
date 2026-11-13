@@ -5,6 +5,8 @@
  */
 export const RESTAURANT_NAME_MAX = 40;
 export const CATEGORY_MAX = 30;
+/** A restaurant can have a few food types, e.g. "Koreaans" and "Broodjes". */
+export const MAX_CATEGORIES = 3;
 export const MAPS_URL_MAX = 500;
 
 // Letters, marks and digits plus the punctuation real restaurant names use:
@@ -24,10 +26,29 @@ export function normalizeRestaurantName(input: string): string | null {
   return cleanText(input, RESTAURANT_NAME_MAX);
 }
 
-/** Categories are optional: empty input is null, invalid input is undefined. */
-export function normalizeCategory(input: string | null | undefined): string | null | undefined {
-  if (input === null || input === undefined || input.trim() === '') return null;
-  return cleanText(input, CATEGORY_MAX) ?? undefined;
+/**
+ * Food types are optional. Accepts a list, or one string with commas
+ * ("Koreaans, Broodjes"). Returns the cleaned, de-duplicated list (possibly
+ * empty), or undefined when any entry is invalid or there are too many.
+ */
+export function normalizeCategories(
+  input: readonly string[] | string | null | undefined,
+): string[] | undefined {
+  if (input === null || input === undefined) return [];
+  const parts = typeof input === 'string' ? input.split(',') : [...input];
+  if (parts.length > MAX_CATEGORIES * 2) return undefined;
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const part of parts) {
+    if (part.trim() === '') continue;
+    const clean = cleanText(part, CATEGORY_MAX);
+    if (!clean) return undefined;
+    const key = clean.toLocaleLowerCase('nl');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(clean);
+  }
+  return result.length <= MAX_CATEGORIES ? result : undefined;
 }
 
 /** Key used to keep restaurant names unique per room, case-insensitively. */

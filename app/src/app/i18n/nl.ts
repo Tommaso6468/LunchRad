@@ -69,6 +69,7 @@ export const nl = {
   restaurants: {
     title: (count: number) => (count === 1 ? '1 restaurant' : `${count} restaurants`),
     empty: 'Nog geen restaurants. Voeg de eerste toe.',
+    categoriesLabel: 'Soort eten',
     add: 'Restaurant toevoegen',
     full: 'Het rad is vol: maximaal 30 restaurants.',
     odds: (slices: number, total: number) => `${slices}/${total}`,
@@ -87,7 +88,7 @@ export const nl = {
       name: 'Naam',
       nameHint: 'Verplicht, maximaal 40 tekens',
       category: 'Soort eten',
-      categoryHint: 'Optioneel, bijvoorbeeld Chinees of Italiaanse broodjes',
+      categoryHint: 'Optioneel. Meerdere? Scheid ze met een komma: Koreaans, Broodjes',
       maps: 'Google Maps-link',
       mapsHint: 'Optioneel. Alleen links naar Google Maps.',
       submit: 'Toevoegen',
@@ -95,6 +96,7 @@ export const nl = {
     },
     categories: [
       'Broodjes',
+      'Koreaans',
       'Burgers',
       'Chinees',
       'Indiaas',
@@ -163,7 +165,8 @@ export const nl = {
     not_connected: 'Die persoon is nu niet verbonden.',
     rate_limited: 'Rustig aan: wacht even en probeer het opnieuw.',
     invalid_restaurant: 'Gebruik 1 tot 40 letters, cijfers of leestekens voor de naam.',
-    invalid_category: 'Gebruik maximaal 30 letters, cijfers of leestekens voor de soort.',
+    invalid_category:
+      'Gebruik maximaal 3 soorten eten van elk 30 letters, cijfers of leestekens, gescheiden door een komma.',
     invalid_maps_url: 'Alleen links naar Google Maps zijn toegestaan.',
     restaurant_exists: 'Dat restaurant staat al op het rad.',
     too_many_restaurants: 'Het rad is vol: maximaal 30 restaurants.',

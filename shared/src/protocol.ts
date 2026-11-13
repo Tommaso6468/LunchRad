@@ -6,7 +6,7 @@
  */
 import * as z from 'zod/mini';
 import { NAME_MAX_LENGTH } from './names';
-import { CATEGORY_MAX, MAPS_URL_MAX, RESTAURANT_NAME_MAX } from './restaurants';
+import { CATEGORY_MAX, MAPS_URL_MAX, MAX_CATEGORIES, RESTAURANT_NAME_MAX } from './restaurants';
 import { ROOM_CODE_LENGTH } from './room-code';
 
 export const LIMITS = {
@@ -95,7 +95,11 @@ export const clientMessage = z.discriminatedUnion('type', [
   z.strictObject({
     type: z.literal('add_restaurant'),
     name: z.string().check(z.minLength(1), z.maxLength(RESTAURANT_NAME_MAX * 4)),
-    category: optionalText(CATEGORY_MAX * 4),
+    categories: z.optional(
+      z
+        .array(z.string().check(z.maxLength(CATEGORY_MAX * 4)))
+        .check(z.maxLength(MAX_CATEGORIES * 2)),
+    ),
     mapsUrl: optionalText(MAPS_URL_MAX),
   }),
   z.strictObject({ type: z.literal('remove_restaurant'), restaurantId }),
@@ -118,7 +122,9 @@ export const participantView = z.strictObject({
 export const restaurantView = z.strictObject({
   id: restaurantId,
   name: z.string().check(z.maxLength(RESTAURANT_NAME_MAX * 4)),
-  category: z.nullable(z.string().check(z.maxLength(CATEGORY_MAX * 4))),
+  categories: z
+    .array(z.string().check(z.maxLength(CATEGORY_MAX * 4)))
+    .check(z.maxLength(MAX_CATEGORIES)),
   mapsUrl: z.nullable(z.string().check(z.maxLength(MAPS_URL_MAX))),
   /** Participant who added it in this session; null for preset restaurants. */
   addedBy: z.nullable(participantId),
