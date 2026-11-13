@@ -6,11 +6,14 @@
  */
 import * as z from 'zod/mini';
 import { NAME_MAX_LENGTH } from './names';
+import { CATEGORY_MAX, MAPS_URL_MAX, MAX_CATEGORIES, RESTAURANT_NAME_MAX } from './restaurants';
 import { ROOM_CODE_LENGTH } from './room-code';
 
 export const LIMITS = {
   /** Maximum participants per room. */
   maxParticipants: 20,
+  /** Maximum restaurants on one wheel, so slices stay readable. */
+  maxRestaurants: 30,
   /** Maximum open sockets per room (a few tabs or devices per person). */
   maxSockets: 60,
   /** Hard cap on a room's lifetime. */
@@ -36,6 +39,9 @@ const name = z.string().check(z.minLength(1), z.maxLength(100));
 const participantId = z.string().check(z.regex(/^[a-f0-9]{16}$/));
 const token = z.string().check(z.regex(/^[A-Za-z0-9_-]{43}$/));
 const roomCode = z.string().check(z.length(ROOM_CODE_LENGTH));
+const restaurantId = z.string().check(z.regex(/^[a-f0-9]{16}$/));
+// Raw input lengths; the exact rules (characters, Maps hosts) run in the room.
+const optionalText = (max: number) => z.optional(z.nullable(z.string().check(z.maxLength(max))));
 
 // ---------- HTTP ----------
 
@@ -86,6 +92,19 @@ export const clientMessage = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('transfer_host'), participantId }),
   z.strictObject({ type: z.literal('leave') }),
   z.strictObject({ type: z.literal('end_room') }),
+  z.strictObject({
+    type: z.literal('add_restaurant'),
+    name: z.string().check(z.minLength(1), z.maxLength(RESTAURANT_NAME_MAX * 4)),
+    categories: z.optional(
+      z
+        .array(z.string().check(z.maxLength(CATEGORY_MAX * 4)))
+        .check(z.maxLength(MAX_CATEGORIES * 2)),
+    ),
+    mapsUrl: optionalText(MAPS_URL_MAX),
+  }),
+  z.strictObject({ type: z.literal('remove_restaurant'), restaurantId }),
+  z.strictObject({ type: z.literal('boost'), restaurantId }),
+  z.strictObject({ type: z.literal('unboost') }),
 ]);
 export type ClientMessage = z.infer<typeof clientMessage>;
 
@@ -96,7 +115,21 @@ export const participantView = z.strictObject({
   name: z.string().check(z.maxLength(NAME_MAX_LENGTH * 4)),
   connected: z.boolean(),
   joinedAt: z.number(),
+  /** The one restaurant this participant boosts, if any. */
+  boost: z.nullable(restaurantId),
 });
+
+export const restaurantView = z.strictObject({
+  id: restaurantId,
+  name: z.string().check(z.maxLength(RESTAURANT_NAME_MAX * 4)),
+  categories: z
+    .array(z.string().check(z.maxLength(CATEGORY_MAX * 4)))
+    .check(z.maxLength(MAX_CATEGORIES)),
+  mapsUrl: z.nullable(z.string().check(z.maxLength(MAPS_URL_MAX))),
+  /** Participant who added it in this session; null for preset restaurants. */
+  addedBy: z.nullable(participantId),
+});
+export type RestaurantView = z.infer<typeof restaurantView>;
 export type ParticipantView = z.infer<typeof participantView>;
 
 export const roomState = z.strictObject({
@@ -105,6 +138,7 @@ export const roomState = z.strictObject({
   createdAt: z.number(),
   expiresAt: z.number(),
   participants: z.array(participantView).check(z.maxLength(LIMITS.maxParticipants)),
+  restaurants: z.array(restaurantView).check(z.maxLength(LIMITS.maxRestaurants)),
 });
 export type RoomState = z.infer<typeof roomState>;
 
@@ -118,11 +152,36 @@ export const SOCKET_ERRORS = [
   'unknown_participant',
   'not_connected',
   'rate_limited',
+  'invalid_restaurant',
+  'invalid_category',
+  'invalid_maps_url',
+  'restaurant_exists',
+  'too_many_restaurants',
+  'unknown_restaurant',
+  'not_allowed',
 ] as const;
+export type SocketError = (typeof SOCKET_ERRORS)[number];
 
 export const roomEvent = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('host_changed'), hostId: participantId, auto: z.boolean() }),
   z.strictObject({ type: z.literal('kicked'), name: z.string() }),
+  z.strictObject({
+    type: z.literal('boosted'),
+    participantId,
+    restaurantId,
+    /** True when the participant moved an earlier boost to this restaurant. */
+    moved: z.boolean(),
+  }),
+  z.strictObject({ type: z.literal('restaurant_added'), participantId, restaurantId }),
+  z.strictObject({
+    type: z.literal('restaurant_removed'),
+    name: z.string(),
+    removedBy: participantId,
+    /** True when the host removed someone else's (or a preset) restaurant. */
+    byHost: z.boolean(),
+    /** Participants whose boost was on it and is now gone. */
+    clearedBoosts: z.array(participantId),
+  }),
 ]);
 export type RoomEvent = z.infer<typeof roomEvent>;
 

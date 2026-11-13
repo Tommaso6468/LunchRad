@@ -1,6 +1,7 @@
 /**
  * One Durable Object per room. It is the single source of truth for who is
- * in the room and who is host. Everything a client sends is validated here;
+ * in the room, who is host, which restaurants are on the wheel and who boosts
+ * what. Everything a client sends is validated here;
  * roles are checked here and never trusted from the client.
  *
  * WebSockets use the Hibernation API, so an idle room costs nothing. All
@@ -13,16 +14,22 @@ import {
   WS_PROTOCOL,
   clientMessage,
   nameKey,
+  normalizeCategories,
+  normalizeMapsUrl,
   normalizeName,
+  normalizeRestaurantName,
+  restaurantKey,
   type ClientMessage,
   type CloseReason,
   type RoomEvent,
   type RoomState,
   type ServerMessage,
+  type SocketError,
 } from '@lunchrad/shared';
 import { DurableObject } from 'cloudflare:workers';
 import { randomId, randomToken, sha256Base64url } from './crypto.ts';
 import type { Env } from './env.ts';
+import { SEED_RESTAURANTS } from './seed-preset.ts';
 
 interface RoomMeta {
   code: string;
@@ -40,6 +47,18 @@ interface Participant {
   name: string;
   tokenHash: string;
   joinedAt: number;
+  /** Restaurant id this participant boosts; at most one. */
+  boost: string | null;
+}
+
+interface Restaurant {
+  id: string;
+  name: string;
+  categories: string[];
+  mapsUrl: string | null;
+  /** Participant who added it; null for preset restaurants. */
+  addedBy: string | null;
+  addedAt: number;
 }
 
 interface SocketAttachment {
@@ -64,6 +83,7 @@ export class Room extends DurableObject<Env> {
   private meta: RoomMeta | null = null;
   private readonly participants = new Map<string, Participant>();
   private readonly tokenIndex = new Map<string, string>();
+  private readonly restaurants = new Map<string, Restaurant>();
   private readonly budgets = new WeakMap<WebSocket, { windowStart: number; count: number }>();
 
   /** Overridable in tests. */
@@ -78,6 +98,8 @@ export class Room extends DurableObject<Env> {
         this.participants.set(p.id, p);
         this.tokenIndex.set(p.tokenHash, p.id);
       }
+      const menu = await ctx.storage.list<Restaurant>({ prefix: 'r:' });
+      for (const r of menu.values()) this.restaurants.set(r.id, r);
     });
     // Answer keep-alive pings without waking the object.
     ctx.setWebSocketAutoResponse(
@@ -104,6 +126,7 @@ export class Room extends DurableObject<Env> {
       hostAwaySince: null,
     };
     await this.persistMeta();
+    await this.seedRestaurants(now);
     await this.scheduleAlarm();
     return { ok: true, participantId: host.participant.id, token: host.token };
   }
@@ -205,6 +228,18 @@ export class Room extends DurableObject<Env> {
           return;
         }
         await this.closeRoom('ended');
+        return;
+      case 'add_restaurant':
+        await this.handleAddRestaurant(ws, pid, parsed);
+        return;
+      case 'remove_restaurant':
+        await this.handleRemoveRestaurant(ws, pid, parsed.restaurantId);
+        return;
+      case 'boost':
+        await this.handleBoost(ws, pid, parsed.restaurantId);
+        return;
+      case 'unboost':
+        await this.handleUnboost(pid);
         return;
     }
   }
@@ -327,6 +362,117 @@ export class Room extends DurableObject<Env> {
     await this.afterMembershipChange();
   }
 
+  private async handleAddRestaurant(
+    ws: WebSocket,
+    pid: string,
+    msg: Extract<ClientMessage, { type: 'add_restaurant' }>,
+  ): Promise<void> {
+    const name = normalizeRestaurantName(msg.name);
+    if (!name) return this.reject(ws, 'invalid_restaurant');
+    const categories = normalizeCategories(msg.categories);
+    if (categories === undefined) return this.reject(ws, 'invalid_category');
+    const mapsUrl = normalizeMapsUrl(msg.mapsUrl);
+    if (mapsUrl === undefined) return this.reject(ws, 'invalid_maps_url');
+    if (this.restaurants.size >= LIMITS.maxRestaurants) {
+      return this.reject(ws, 'too_many_restaurants');
+    }
+    const key = restaurantKey(name);
+    for (const r of this.restaurants.values()) {
+      if (restaurantKey(r.name) === key) return this.reject(ws, 'restaurant_exists');
+    }
+    const restaurant: Restaurant = {
+      id: randomId(),
+      name,
+      categories,
+      mapsUrl,
+      addedBy: pid,
+      addedAt: this.now(),
+    };
+    await this.putRestaurant(restaurant);
+    this.broadcastState();
+    this.broadcastEvent({
+      type: 'restaurant_added',
+      participantId: pid,
+      restaurantId: restaurant.id,
+    });
+  }
+
+  private async handleRemoveRestaurant(ws: WebSocket, pid: string, id: string): Promise<void> {
+    const restaurant = this.restaurants.get(id);
+    if (!restaurant) return this.reject(ws, 'unknown_restaurant');
+    const byHost = this.isHost(pid);
+    // The host can remove anything, preset entries included (for this room
+    // only); everyone else only what they added themselves.
+    if (!byHost && restaurant.addedBy !== pid) return this.reject(ws, 'not_allowed');
+
+    this.restaurants.delete(id);
+    await this.ctx.storage.delete(`r:${id}`);
+    const clearedBoosts: string[] = [];
+    for (const p of this.participants.values()) {
+      if (p.boost === id) {
+        p.boost = null;
+        clearedBoosts.push(p.id);
+        await this.ctx.storage.put(`p:${p.id}`, p);
+      }
+    }
+    this.broadcastState();
+    this.broadcastEvent({
+      type: 'restaurant_removed',
+      name: restaurant.name,
+      removedBy: pid,
+      byHost: byHost && restaurant.addedBy !== pid,
+      clearedBoosts,
+    });
+  }
+
+  private async handleBoost(ws: WebSocket, pid: string, id: string): Promise<void> {
+    const participant = this.participants.get(pid);
+    if (!participant) return;
+    if (!this.restaurants.has(id)) return this.reject(ws, 'unknown_restaurant');
+    if (participant.boost === id) return; // Already boosting this one.
+    const moved = participant.boost !== null;
+    participant.boost = id;
+    await this.ctx.storage.put(`p:${pid}`, participant);
+    this.broadcastState();
+    this.broadcastEvent({ type: 'boosted', participantId: pid, restaurantId: id, moved });
+  }
+
+  private async handleUnboost(pid: string): Promise<void> {
+    const participant = this.participants.get(pid);
+    if (!participant || participant.boost === null) return;
+    participant.boost = null;
+    await this.ctx.storage.put(`p:${pid}`, participant);
+    this.broadcastState();
+  }
+
+  private reject(ws: WebSocket, error: SocketError): void {
+    this.send(ws, { type: 'error', error });
+  }
+
+  private async seedRestaurants(now: number): Promise<void> {
+    let order = 0;
+    for (const seed of SEED_RESTAURANTS.slice(0, LIMITS.maxRestaurants)) {
+      const name = normalizeRestaurantName(seed.name);
+      const categories = normalizeCategories(seed.categories);
+      const mapsUrl = normalizeMapsUrl(seed.mapsUrl);
+      // Invalid seed entries are skipped, never stored unchecked.
+      if (!name || categories === undefined || mapsUrl === undefined) continue;
+      await this.putRestaurant({
+        id: randomId(),
+        name,
+        categories,
+        mapsUrl,
+        addedBy: null,
+        addedAt: now + order++,
+      });
+    }
+  }
+
+  private async putRestaurant(restaurant: Restaurant): Promise<void> {
+    this.restaurants.set(restaurant.id, restaurant);
+    await this.ctx.storage.put(`r:${restaurant.id}`, restaurant);
+  }
+
   private async handleDisconnect(closing: WebSocket): Promise<void> {
     const meta = this.meta;
     if (!meta) return;
@@ -386,6 +532,7 @@ export class Room extends DurableObject<Env> {
     this.meta = null;
     this.participants.clear();
     this.tokenIndex.clear();
+    this.restaurants.clear();
     // Delete everything: tokens of a closed room can never be used again, and
     // the same code can later start a completely fresh room.
     await this.ctx.storage.deleteAlarm();
@@ -420,6 +567,7 @@ export class Room extends DurableObject<Env> {
       name,
       tokenHash: await sha256Base64url(token),
       joinedAt: now,
+      boost: null,
     };
     this.participants.set(participant.id, participant);
     this.tokenIndex.set(participant.tokenHash, participant.id);
@@ -482,7 +630,17 @@ export class Room extends DurableObject<Env> {
         name: p.name,
         connected: connected.has(p.id),
         joinedAt: p.joinedAt,
+        boost: p.boost,
       })),
+      restaurants: [...this.restaurants.values()]
+        .sort((a, b) => a.addedAt - b.addedAt)
+        .map((r) => ({
+          id: r.id,
+          name: r.name,
+          categories: r.categories,
+          mapsUrl: r.mapsUrl,
+          addedBy: r.addedBy,
+        })),
     };
   }
 

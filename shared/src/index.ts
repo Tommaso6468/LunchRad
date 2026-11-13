@@ -8,3 +8,13 @@ export {
 } from './room-code';
 export { NAME_MAX_LENGTH, normalizeName, nameKey } from './names';
 export * from './protocol';
+export {
+  CATEGORY_MAX,
+  MAPS_URL_MAX,
+  MAX_CATEGORIES,
+  RESTAURANT_NAME_MAX,
+  normalizeCategories,
+  normalizeMapsUrl,
+  normalizeRestaurantName,
+  restaurantKey,
+} from './restaurants';

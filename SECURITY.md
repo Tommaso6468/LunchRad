@@ -14,22 +14,23 @@ Expect a response within 7 days.
 
 These are enforced by CI where possible.
 
-| Rule                                                                                                        | Enforced by                                 |
-| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| No raw HTML: no `[innerHTML]`, `innerHTML =`, `insertAdjacentHTML`, `bypassSecurityTrust*`                  | ESLint + `scripts/check-forbidden.mjs`      |
-| No string-to-code: no `eval`, `new Function`                                                                | ESLint + `scripts/check-forbidden.mjs`      |
-| Randomness for codes, tokens and spins comes from `crypto.getRandomValues`, never `Math.random`             | ESLint                                      |
-| Strict CSP: per-request nonce, no `unsafe-inline`/`unsafe-eval`, Trusted Types                              | Worker tests + post-deploy smoke test       |
-| Security headers on every response, including static assets                                                 | Worker tests (incl. `_headers` drift check) |
-| Every request body and WebSocket message is validated with a Zod schema, has a size limit and a rate limit  | Shared schemas, Worker tests                |
-| Every room route needs the team session; WebSockets also need the participant token in the first message    | Worker tests                                |
-| Secrets missing or too weak: the API answers 503, never a default                                           | Worker tests                                |
-| Roles (host, admin) are checked on the server only; the client is never trusted                             | Code review, abuse tests                    |
-| No secrets in the repo; secrets live in GitHub environment secrets and Wrangler secrets                     | gitleaks, GitHub push protection            |
-| Errors to clients are generic Dutch messages; logs contain no tokens, keys or full IPs                      | Code review                                 |
-| Dependencies: no known high/critical vulnerabilities, registry signatures verified                          | `npm audit`, OSV, dependency review         |
-| GitHub Actions pinned to commit SHAs, least-privilege permissions, no persisted credentials                 | CodeQL (actions), review                    |
-| Production deploys only from a semver release tag on `main`, after full re-verification and manual approval | `deploy-production.yml`, GitHub environment |
+| Rule                                                                                                             | Enforced by                                 |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| No raw HTML: no `[innerHTML]`, `innerHTML =`, `insertAdjacentHTML`, `bypassSecurityTrust*`                       | ESLint + `scripts/check-forbidden.mjs`      |
+| No string-to-code: no `eval`, `new Function`                                                                     | ESLint + `scripts/check-forbidden.mjs`      |
+| Randomness for codes, tokens and spins comes from `crypto.getRandomValues`, never `Math.random`                  | ESLint                                      |
+| Strict CSP: per-request nonce, no `unsafe-inline`/`unsafe-eval`, Trusted Types                                   | Worker tests + post-deploy smoke test       |
+| Security headers on every response, including static assets                                                      | Worker tests (incl. `_headers` drift check) |
+| Every request body and WebSocket message is validated with a Zod schema, has a size limit and a rate limit       | Shared schemas, Worker tests                |
+| Links are only accepted to Google Maps (https, allow-listed hosts and paths) and open with `noopener noreferrer` | Shared + Worker + app tests                 |
+| Every room route needs the team session; WebSockets also need the participant token in the first message         | Worker tests                                |
+| Secrets missing or too weak: the API answers 503, never a default                                                | Worker tests                                |
+| Roles (host, admin) are checked on the server only; the client is never trusted                                  | Code review, abuse tests                    |
+| No secrets in the repo; secrets live in GitHub environment secrets and Wrangler secrets                          | gitleaks, GitHub push protection            |
+| Errors to clients are generic Dutch messages; logs contain no tokens, keys or full IPs                           | Code review                                 |
+| Dependencies: no known high/critical vulnerabilities, registry signatures verified                               | `npm audit`, OSV, dependency review         |
+| GitHub Actions pinned to commit SHAs, least-privilege permissions, no persisted credentials                      | CodeQL (actions), review                    |
+| Production deploys only from a semver release tag on `main`, after full re-verification and manual approval      | `deploy-production.yml`, GitHub environment |
 
 ## Secure development lifecycle
 

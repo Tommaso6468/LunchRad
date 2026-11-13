@@ -9,6 +9,7 @@ import {
   type RoomCredentials,
   type RoomEvent,
   type RoomState,
+  type SocketError,
 } from '@lunchrad/shared';
 
 export type ConnectionStatus = 'connecting' | 'open' | 'reconnecting' | 'finished';
@@ -49,6 +50,7 @@ export class RoomConnection {
     private readonly credentials: RoomCredentials,
     private readonly teamToken: () => string | null,
     private readonly onEvent: (event: RoomEvent) => void,
+    private readonly onError: (error: SocketError) => void = () => undefined,
   ) {
     document.addEventListener('visibilitychange', this.onVisible);
     this.open();
@@ -133,6 +135,8 @@ export class RoomConnection {
         this.closedReason = message.reason;
         break;
       case 'error':
+        this.onError(message.error);
+        break;
       case 'pong':
         break;
     }

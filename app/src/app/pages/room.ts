@@ -10,21 +10,38 @@ import {
   untracked,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { normalizeName, normalizeRoomCode, type RoomEvent } from '@lunchrad/shared';
+import {
+  normalizeName,
+  normalizeRoomCode,
+  type RoomEvent,
+  type RoomState,
+  type SocketError,
+} from '@lunchrad/shared';
 import { Api } from '../core/api';
 import { RoomConnection } from '../core/room-connection';
 import { DeviceStore } from '../core/storage';
 import { Toasts } from '../core/toasts';
 import { nl } from '../i18n/nl';
 import { bindInput, errorText } from '../ui/forms';
+import { AddRestaurantDialog, type NewRestaurant } from '../ui/add-restaurant-dialog';
+import { ParticipantList } from '../ui/participant-list';
 import { QrCode } from '../ui/qr-code';
+import { RestaurantList } from '../ui/restaurant-list';
 import { RoomCode } from '../ui/room-code';
 import { TeamKeyForm } from './team-key-form';
 
 @Component({
   selector: 'app-room',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RoomCode, QrCode, TeamKeyForm, RouterLink],
+  imports: [
+    RoomCode,
+    QrCode,
+    TeamKeyForm,
+    RouterLink,
+    RestaurantList,
+    AddRestaurantDialog,
+    ParticipantList,
+  ],
   template: `
     @let validCode = roomCode();
     @if (!validCode) {
@@ -74,51 +91,23 @@ import { TeamKeyForm } from './team-key-form';
         }
 
         @if (conn.state(); as state) {
-          <section class="panel" aria-labelledby="people-title">
-            <h2 id="people-title">{{ t.room.participants(state.participants.length) }}</h2>
-            <ul class="people">
-              @for (p of state.participants; track p.id) {
-                <li [class.offline]="!p.connected">
-                  <span class="person">
-                    <span class="name">{{ p.name }}</span>
-                    @if (p.id === state.hostId) {
-                      <span class="badge host">{{ t.room.host }}</span>
-                    }
-                    @if (p.id === conn.you()) {
-                      <span class="badge">{{ t.room.you }}</span>
-                    }
-                    @if (!p.connected) {
-                      <span class="status">{{ t.room.offline }}</span>
-                    }
-                  </span>
-                  @if (conn.isHost() && p.id !== conn.you()) {
-                    <span class="actions">
-                      @if (p.connected) {
-                        <button
-                          type="button"
-                          class="small"
-                          [attr.aria-label]="t.room.makeHost(p.name)"
-                          (click)="makeHost(p.id)"
-                        >
-                          {{ t.room.makeHostShort }}
-                        </button>
-                      }
-                      <button
-                        type="button"
-                        class="small danger"
-                        [attr.aria-label]="t.room.remove(p.name)"
-                        (click)="kick(p.id, p.name)"
-                      >
-                        {{ t.room.removeShort }}
-                      </button>
-                    </span>
-                  }
-                </li>
-              }
-            </ul>
-          </section>
+          <app-restaurant-list
+            [state]="state"
+            [you]="conn.you()"
+            [isHost]="conn.isHost()"
+            (toggleBoost)="toggleBoost($event)"
+            (remove)="removeRestaurant($event)"
+            (addRequested)="addDialog.open()"
+          />
+          <app-add-restaurant-dialog #addDialog (added)="addRestaurant($event)" />
 
-          <p class="placeholder">{{ t.room.restaurantsSoon }}</p>
+          <app-participant-list
+            [state]="state"
+            [you]="conn.you()"
+            [isHost]="conn.isHost()"
+            (makeHost)="makeHost($event)"
+            (kick)="kick($event.id, $event.name)"
+          />
 
           <footer class="room-foot">
             @if (conn.isHost()) {
@@ -248,6 +237,20 @@ export class Room {
     }
   }
 
+  protected toggleBoost(restaurantId: string | null): void {
+    this.connection()?.send(restaurantId ? { type: 'boost', restaurantId } : { type: 'unboost' });
+  }
+
+  protected addRestaurant(restaurant: NewRestaurant): void {
+    this.connection()?.send({ type: 'add_restaurant', ...restaurant });
+  }
+
+  protected removeRestaurant(restaurant: { id: string; name: string }): void {
+    if (confirm(nl.restaurants.confirmRemove(restaurant.name))) {
+      this.connection()?.send({ type: 'remove_restaurant', restaurantId: restaurant.id });
+    }
+  }
+
   protected makeHost(participantId: string): void {
     this.connection()?.send({ type: 'transfer_host', participantId });
   }
@@ -272,6 +275,7 @@ export class Room {
         creds,
         () => this.store.teamToken(),
         (event) => this.onEvent(event),
+        (error) => this.onSocketError(error),
       ),
     );
   }
@@ -291,7 +295,50 @@ export class Room {
       case 'kicked':
         this.toasts.show(nl.toasts.kicked(event.name));
         break;
+      case 'boosted': {
+        // No toast for your own actions: you just saw the button change.
+        if (event.participantId === conn?.you()) break;
+        const state = conn?.state();
+        const who = this.participantName(state, event.participantId);
+        const where = state?.restaurants.find((r) => r.id === event.restaurantId)?.name;
+        if (!who || !where) break;
+        this.toasts.showGrouped(
+          'boost',
+          event.moved ? nl.toasts.boostMoved(who, where) : nl.toasts.boosted(who, where),
+          nl.toasts.manyBoosts,
+        );
+        break;
+      }
+      case 'restaurant_added': {
+        if (event.participantId === conn?.you()) break;
+        const state = conn?.state();
+        const who = this.participantName(state, event.participantId);
+        const what = state?.restaurants.find((r) => r.id === event.restaurantId)?.name;
+        if (who && what) {
+          this.toasts.showGrouped('added', nl.toasts.added(who, what), nl.toasts.manyAdded);
+        }
+        break;
+      }
+      case 'restaurant_removed': {
+        const you = conn?.you();
+        if (you && event.clearedBoosts.includes(you) && event.removedBy !== you) {
+          this.toasts.show(nl.toasts.yourBoostGone(event.name));
+        } else if (event.removedBy !== you) {
+          this.toasts.show(
+            event.byHost ? nl.toasts.removedByHost(event.name) : nl.toasts.removed(event.name),
+          );
+        }
+        break;
+      }
     }
+  }
+
+  private onSocketError(error: SocketError): void {
+    this.toasts.show(nl.socketErrors[error]);
+  }
+
+  private participantName(state: RoomState | null | undefined, id: string): string | undefined {
+    return state?.participants.find((p) => p.id === id)?.name;
   }
 
   private warnIfClosingSoon(): void {

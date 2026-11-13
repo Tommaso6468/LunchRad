@@ -44,7 +44,13 @@ describe('authentication', () => {
     expect(welcome.you).toBe(host.participantId);
     expect(welcome.state.hostId).toBe(host.participantId);
     expect(welcome.state.participants).toEqual([
-      { id: host.participantId, name: 'Sanne', connected: true, joinedAt: expect.any(Number) },
+      {
+        id: host.participantId,
+        name: 'Sanne',
+        connected: true,
+        joinedAt: expect.any(Number),
+        boost: null,
+      },
     ]);
     expect(welcome.state.expiresAt - welcome.state.createdAt).toBe(LIMITS.roomLifetimeMs);
     expect(JSON.stringify(socket.messages)).not.toContain(host.token);

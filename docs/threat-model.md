@@ -1,6 +1,6 @@
 # Threat model
 
-Version 2 — M1 (13 November 2026). Update this file in every milestone that
+Version 3 — M2 (13 November 2026). Update this file in every milestone that
 changes the attack surface.
 
 ## Assets
@@ -37,8 +37,11 @@ changes the attack surface.
 | I4  | Information disclosure | Probing which room codes exist                            | Without a team session every room route answers 401 before any room lookup                                                              | M1 ✓       |
 | I2  | Information disclosure | Stack traces or internals in responses                    | Generic error bodies; structured logs without request data                                                                              | M0         |
 | I3  | Information disclosure | Secrets committed to the public repo                      | gitleaks in CI, GitHub secret scanning with push protection, `.gitignore` for env files                                                 | M0         |
+| T5  | Tampering              | A restaurant link that leads to phishing or runs script   | Server-side allow-list: https Google Maps hosts and paths only, no credentials or ports; `rel="noopener noreferrer"`                    | M2 ✓       |
+| T6  | Tampering              | Removing or boosting on behalf of someone else            | Identity comes from the authenticated socket, never from the message; host-or-owner check on removal                                    | M2 ✓       |
 | D1  | Denial of service      | Bots exhaust the free quota                               | Team key + Turnstile + rate limits on create/join/WebSocket; 20 per room; 10 s hello timeout; message size and rate limits; hibernation | M1 ✓       |
-| E1  | Elevation of privilege | Stored XSS via restaurant or participant names            | Text-only rendering enforced by lint; strict nonce CSP; Trusted Types                                                                   | M0, M2     |
+| D2  | Denial of service      | Filling a wheel with junk, or flooding boost toggles      | 30 restaurants per room, unique names, 2 KB messages, 20 messages per 10 s per socket, host can remove anything                         | M2 ✓       |
+| E1  | Elevation of privilege | Stored XSS via restaurant or participant names            | Text-only rendering enforced by lint and tests; strict character rules for names and categories; strict nonce CSP; Trusted Types        | M0, M2 ✓   |
 | E2  | Elevation of privilege | Clickjacking the host's controls                          | `frame-ancestors 'none'` + `X-Frame-Options: DENY`                                                                                      | M0         |
 | E3  | Elevation of privilege | Cross-site WebSocket hijacking                            | Exact `Origin` check on upgrade; no cookies at all; tokens sent explicitly                                                              | M1 ✓       |
 | E4  | Elevation of privilege | Takeover of the owner's GitHub, Cloudflare or admin email | Passkeys/hardware keys, scoped Cloudflare API token, branch protection                                                                  | M0 (setup) |
@@ -52,5 +55,7 @@ changes the attack surface.
 - **M1 (done):** Turnstile needs `https://challenges.cloudflare.com` in
   `script-src` and `frame-src`. It is on the whole shell, because the app is
   a single page; any script from that Cloudflare origin is allowed.
-- **M2:** restaurant names and Maps links become user input: same text-only
-  rendering, plus an allow-list of Maps URL hosts.
+- **M2 (done):** restaurant names, categories and Maps links are user input;
+  see T5, T6, D2.
+- **M3:** the spin result must come from the server's CSPRNG, and boosts must
+  be locked once the spin starts.

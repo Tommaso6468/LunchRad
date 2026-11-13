@@ -1,4 +1,4 @@
-import type { ApiError } from '@lunchrad/shared';
+import type { ApiError, SocketError } from '@lunchrad/shared';
 import type { FinishReason } from '../core/room-connection';
 
 /**
@@ -62,9 +62,55 @@ export const nl = {
     confirmLeave: 'De kamer verlaten?',
     end: 'Kamer sluiten',
     leave: 'Kamer verlaten',
-    restaurantsSoon: 'Hier komen straks de restaurants en het rad.',
     connecting: 'Verbinden…',
     reconnecting: 'Verbinding kwijt. Opnieuw verbinden…',
+  },
+
+  restaurants: {
+    title: (count: number) => (count === 1 ? '1 restaurant' : `${count} restaurants`),
+    empty: 'Nog geen restaurants. Voeg de eerste toe.',
+    categoriesLabel: 'Soort eten',
+    add: 'Restaurant toevoegen',
+    full: 'Het rad is vol: maximaal 30 restaurants.',
+    odds: (slices: number, total: number) => `${slices}/${total}`,
+    oddsLabel: (slices: number, total: number) => `${slices} van de ${total} vakken op het rad`,
+    boostedBy: (names: string[]) => `Boost van ${names.join(', ')}`,
+    boost: 'Boost',
+    boosted: 'Geboost',
+    boostLabel: (name: string) => `Boost ${name}`,
+    unboostLabel: (name: string) => `Boost voor ${name} weghalen`,
+    maps: (name: string) => `${name} openen in Google Maps`,
+    remove: (name: string) => `${name} verwijderen`,
+    confirmRemove: (name: string) => `${name} van het rad halen?`,
+    howBoostWorks: 'Een boost geeft een restaurant een extra vak op het rad. Je hebt er één.',
+    dialog: {
+      title: 'Restaurant toevoegen',
+      name: 'Naam',
+      nameHint: 'Verplicht, maximaal 40 tekens',
+      category: 'Soort eten',
+      categoryHint: 'Optioneel. Meerdere? Scheid ze met een komma: Koreaans, Broodjes',
+      maps: 'Google Maps-link',
+      mapsHint: 'Optioneel. Alleen links naar Google Maps.',
+      submit: 'Toevoegen',
+      cancel: 'Annuleren',
+    },
+    categories: [
+      'Broodjes',
+      'Koreaans',
+      'Burgers',
+      'Chinees',
+      'Indiaas',
+      'Italiaans',
+      'Japans',
+      'Mexicaans',
+      'Pizza',
+      'Salades',
+      'Snackbar',
+      'Surinaams',
+      'Thais',
+      'Turks',
+      'Vietnamees',
+    ],
   },
 
   toasts: {
@@ -72,6 +118,14 @@ export const nl = {
     newHost: (name: string) => `${name} is nu de host`,
     kicked: (name: string) => `${name} is uit de kamer verwijderd`,
     closingSoon: 'De kamer sluit over 5 minuten',
+    boosted: (who: string, where: string) => `${who} boost ${where}`,
+    boostMoved: (who: string, where: string) => `${who} boost nu ${where}`,
+    manyBoosts: (count: number) => `${count} nieuwe boosts`,
+    added: (who: string, what: string) => `${who} heeft ${what} toegevoegd`,
+    manyAdded: (count: number) => `${count} restaurants toegevoegd`,
+    removed: (what: string) => `${what} is van het rad gehaald`,
+    removedByHost: (what: string) => `De host heeft ${what} van het rad gehaald`,
+    yourBoostGone: (what: string) => `Je boost is weg: ${what} is van het rad gehaald`,
   },
 
   finished: {
@@ -102,4 +156,21 @@ export const nl = {
     server_error: 'Er ging iets mis. Probeer het opnieuw.',
     network: 'Geen verbinding. Controleer je internet en probeer het opnieuw.',
   } satisfies Record<ApiError | 'network', string>,
+
+  socketErrors: {
+    bad_message: 'Er ging iets mis. Herlaad de pagina.',
+    unauthorized: 'Je bent niet (meer) in deze kamer.',
+    not_host: 'Alleen de host kan dat.',
+    unknown_participant: 'Die persoon is niet (meer) in de kamer.',
+    not_connected: 'Die persoon is nu niet verbonden.',
+    rate_limited: 'Rustig aan: wacht even en probeer het opnieuw.',
+    invalid_restaurant: 'Gebruik 1 tot 40 letters, cijfers of leestekens voor de naam.',
+    invalid_category:
+      'Gebruik maximaal 3 soorten eten van elk 30 letters, cijfers of leestekens, gescheiden door een komma.',
+    invalid_maps_url: 'Alleen links naar Google Maps zijn toegestaan.',
+    restaurant_exists: 'Dat restaurant staat al op het rad.',
+    too_many_restaurants: 'Het rad is vol: maximaal 30 restaurants.',
+    unknown_restaurant: 'Dat restaurant staat niet meer op het rad.',
+    not_allowed: 'Alleen de host of wie het heeft toegevoegd kan dit weghalen.',
+  } satisfies Record<SocketError, string>,
 } as const;
