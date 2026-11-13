@@ -28,6 +28,7 @@ import {
   type RoomState,
   type ServerMessage,
   type SocketError,
+  respinNeeds,
 } from '@lunchrad/shared';
 import { DurableObject } from 'cloudflare:workers';
 import { randomId, randomToken, sha256Base64url } from './crypto.ts';
@@ -44,8 +45,21 @@ interface RoomMeta {
   emptySince: number | null;
   /** Set while the host is disconnected. */
   hostAwaySince: number | null;
-  phase: 'lobby' | 'spinning' | 'result';
+  phase: 'lobby' | 'spinning' | 'voting' | 'result';
   spin: Spin | null;
+  respins: number;
+  vote: Vote | null;
+  /** When the final result was reached; the room closes a while later. */
+  finalAt: number | null;
+}
+
+interface Vote {
+  /** Fixed when the vote opens: everyone connected at that moment. */
+  eligible: string[];
+  yes: string[];
+  no: string[];
+  startedAt: number;
+  durationMs: number;
 }
 
 interface Spin {
@@ -108,8 +122,17 @@ export class Room extends DurableObject<Env> {
     super(ctx, env);
     void ctx.blockConcurrencyWhile(async () => {
       const meta = await ctx.storage.get<RoomMeta>('meta');
-      // Rooms created before M3 have no phase yet.
-      this.meta = meta ? { ...meta, phase: meta.phase ?? 'lobby', spin: meta.spin ?? null } : null;
+      // Rooms created before M3/M4 lack the newer fields.
+      this.meta = meta
+        ? {
+            ...meta,
+            phase: meta.phase ?? 'lobby',
+            spin: meta.spin ?? null,
+            respins: meta.respins ?? 0,
+            vote: meta.vote ?? null,
+            finalAt: meta.finalAt ?? null,
+          }
+        : null;
       const stored = await ctx.storage.list<Participant>({ prefix: 'p:' });
       for (const p of stored.values()) {
         this.participants.set(p.id, p);
@@ -143,6 +166,9 @@ export class Room extends DurableObject<Env> {
       hostAwaySince: null,
       phase: 'lobby',
       spin: null,
+      respins: 0,
+      vote: null,
+      finalAt: null,
     };
     await this.persistMeta();
     await this.seedRestaurants(now);
@@ -251,6 +277,9 @@ export class Room extends DurableObject<Env> {
       case 'start_spin':
         await this.handleStartSpin(ws, pid);
         return;
+      case 'vote':
+        await this.handleVote(ws, pid, parsed.choice);
+        return;
       case 'add_restaurant':
         if (this.meta.phase !== 'lobby') return this.reject(ws, 'locked');
         await this.handleAddRestaurant(ws, pid, parsed);
@@ -297,9 +326,21 @@ export class Room extends DurableObject<Env> {
 
     const spin = meta.spin;
     if (meta.phase === 'spinning' && spin && now >= spin.startedAt + spin.durationMs) {
-      meta.phase = 'result';
-      await this.persistMeta();
-      this.broadcastState();
+      await this.afterSpin(now);
+    } else if (
+      meta.phase === 'voting' &&
+      meta.vote &&
+      now >= meta.vote.startedAt + meta.vote.durationMs
+    ) {
+      const needs = respinNeeds(meta.vote.eligible.length);
+      await this.endVote(meta.vote.yes.length >= needs);
+    } else if (
+      meta.phase === 'result' &&
+      meta.finalAt !== null &&
+      now >= meta.finalAt + LIMITS.closeAfterResultMs
+    ) {
+      await this.closeRoom('finished');
+      return;
     }
 
     for (const ws of this.ctx.getWebSockets()) {
@@ -438,16 +479,7 @@ export class Room extends DurableObject<Env> {
     // only); everyone else only what they added themselves.
     if (!byHost && restaurant.addedBy !== pid) return this.reject(ws, 'not_allowed');
 
-    this.restaurants.delete(id);
-    await this.ctx.storage.delete(`r:${id}`);
-    const clearedBoosts: string[] = [];
-    for (const p of this.participants.values()) {
-      if (p.boost === id) {
-        p.boost = null;
-        clearedBoosts.push(p.id);
-        await this.ctx.storage.put(`p:${p.id}`, p);
-      }
-    }
+    const clearedBoosts = await this.deleteRestaurant(id);
     this.broadcastState();
     this.broadcastEvent({
       type: 'restaurant_removed',
@@ -478,10 +510,7 @@ export class Room extends DurableObject<Env> {
     this.broadcastState();
   }
 
-  /**
-   * Host pulls the lever. The list and boosts lock, the server picks the
-   * winning row, and everyone receives the same reel and result.
-   */
+  /** Host pulls the lever. The list and boosts lock and the reel runs. */
   private async handleStartSpin(ws: WebSocket, pid: string): Promise<void> {
     const meta = this.meta;
     if (!meta) return;
@@ -490,6 +519,17 @@ export class Room extends DurableObject<Env> {
     if (this.restaurants.size < LIMITS.minRestaurantsToSpin) {
       return this.reject(ws, 'not_enough_restaurants');
     }
+    await this.runSpin();
+  }
+
+  /**
+   * Builds the reel from the current restaurants and boosts, picks the
+   * winning row with the CSPRNG and tells everyone. Used for the first spin
+   * and for every respin.
+   */
+  private async runSpin(): Promise<void> {
+    const meta = this.meta;
+    if (!meta) return;
     const boosts = new Map<string, number>();
     for (const p of this.participants.values()) {
       if (p.boost && this.restaurants.has(p.boost)) {
@@ -501,6 +541,7 @@ export class Room extends DurableObject<Env> {
     );
     const winnerIndex = randomIndex(reel.length);
     meta.phase = 'spinning';
+    meta.vote = null;
     meta.spin = {
       number: (meta.spin?.number ?? 0) + 1,
       reel,
@@ -512,6 +553,105 @@ export class Room extends DurableObject<Env> {
     await this.persistMeta();
     this.broadcastState();
     await this.scheduleAlarm();
+  }
+
+  /**
+   * The reel has stopped. Open the respin vote, unless respins are used up,
+   * fewer than two restaurants would be left, or nobody is there to vote.
+   */
+  private async afterSpin(now: number): Promise<void> {
+    const meta = this.meta;
+    if (!meta) return;
+    const voters = [...this.connectedIds()];
+    const canRespin =
+      meta.respins < LIMITS.maxRespins &&
+      this.restaurants.size - 1 >= LIMITS.minRestaurantsToSpin &&
+      voters.length > 0;
+    if (!canRespin) {
+      await this.finalize(now);
+      return;
+    }
+    meta.phase = 'voting';
+    meta.vote = {
+      eligible: voters,
+      yes: [],
+      no: [],
+      startedAt: now,
+      durationMs: LIMITS.voteDurationMs,
+    };
+    await this.persistMeta();
+    this.broadcastState();
+  }
+
+  private async handleVote(ws: WebSocket, pid: string, choice: 'yes' | 'no'): Promise<void> {
+    const meta = this.meta;
+    const vote = meta?.vote;
+    if (!meta || meta.phase !== 'voting' || !vote) return this.reject(ws, 'no_vote');
+    if (!vote.eligible.includes(pid)) return this.reject(ws, 'not_eligible');
+    // One vote per participant; changing your mind replaces the earlier vote.
+    vote.yes = vote.yes.filter((id) => id !== pid);
+    vote.no = vote.no.filter((id) => id !== pid);
+    vote[choice].push(pid);
+    await this.persistMeta();
+
+    const needs = respinNeeds(vote.eligible.length);
+    if (vote.yes.length >= needs) {
+      await this.endVote(true);
+    } else if (vote.eligible.length - vote.no.length < needs) {
+      // Even if everyone left voted yes, it would not be enough.
+      await this.endVote(false);
+    } else {
+      this.broadcastState();
+    }
+  }
+
+  /** Respin (winner off the wheel, spin again) or final result. */
+  private async endVote(respin: boolean): Promise<void> {
+    const meta = this.meta;
+    const vote = meta?.vote;
+    const spin = meta?.spin;
+    if (!meta || !vote || !spin) return;
+    const winner = this.restaurants.get(spin.winnerId);
+    this.broadcastEvent({
+      type: 'vote_ended',
+      respin,
+      yes: vote.yes.length,
+      eligible: vote.eligible.length,
+      removedName: respin ? (winner?.name ?? null) : null,
+    });
+    if (!respin) {
+      await this.finalize(this.now());
+      return;
+    }
+    meta.respins += 1;
+    await this.deleteRestaurant(spin.winnerId);
+    await this.runSpin();
+  }
+
+  private async finalize(now: number): Promise<void> {
+    const meta = this.meta;
+    if (!meta) return;
+    meta.phase = 'result';
+    meta.vote = null;
+    meta.finalAt = now;
+    await this.persistMeta();
+    this.broadcastState();
+    await this.scheduleAlarm();
+  }
+
+  /** Removes a restaurant from this room and clears boosts on it. Returns who lost a boost. */
+  private async deleteRestaurant(id: string): Promise<string[]> {
+    this.restaurants.delete(id);
+    await this.ctx.storage.delete(`r:${id}`);
+    const cleared: string[] = [];
+    for (const p of this.participants.values()) {
+      if (p.boost === id) {
+        p.boost = null;
+        cleared.push(p.id);
+        await this.ctx.storage.put(`p:${p.id}`, p);
+      }
+    }
+    return cleared;
   }
 
   private reject(ws: WebSocket, error: SocketError): void {
@@ -616,6 +756,12 @@ export class Room extends DurableObject<Env> {
     if (meta.phase === 'spinning' && meta.spin) {
       deadlines.push(meta.spin.startedAt + meta.spin.durationMs);
     }
+    if (meta.phase === 'voting' && meta.vote) {
+      deadlines.push(meta.vote.startedAt + meta.vote.durationMs);
+    }
+    if (meta.phase === 'result' && meta.finalAt !== null) {
+      deadlines.push(meta.finalAt + LIMITS.closeAfterResultMs);
+    }
     if (meta.emptySince !== null) deadlines.push(meta.emptySince + LIMITS.emptyRoomMs);
     if (meta.hostAwaySince !== null && meta.hostAwaySince + LIMITS.hostAwayMs > now) {
       deadlines.push(meta.hostAwaySince + LIMITS.hostAwayMs);
@@ -652,6 +798,11 @@ export class Room extends DurableObject<Env> {
     if (!participant) return;
     this.participants.delete(pid);
     this.tokenIndex.delete(participant.tokenHash);
+    if (this.meta?.vote) {
+      this.meta.vote.yes = this.meta.vote.yes.filter((id) => id !== pid);
+      this.meta.vote.no = this.meta.vote.no.filter((id) => id !== pid);
+      await this.persistMeta();
+    }
     await this.ctx.storage.delete(`p:${pid}`);
     for (const ws of this.ctx.getWebSockets()) {
       if (this.attachment(ws).pid === pid) {
@@ -714,6 +865,20 @@ export class Room extends DurableObject<Env> {
           addedBy: r.addedBy,
         })),
       phase: meta.phase,
+      respinsLeft: Math.max(0, LIMITS.maxRespins - meta.respins),
+      vote: meta.vote
+        ? {
+            eligible: meta.vote.eligible,
+            yes: meta.vote.yes,
+            no: meta.vote.no,
+            durationMs: meta.vote.durationMs,
+            remainingMs: Math.max(0, meta.vote.startedAt + meta.vote.durationMs - this.now()),
+          }
+        : null,
+      closesInMs:
+        meta.phase === 'result' && meta.finalAt !== null
+          ? Math.max(0, meta.finalAt + LIMITS.closeAfterResultMs - this.now())
+          : null,
       spin: meta.spin
         ? {
             number: meta.spin.number,
