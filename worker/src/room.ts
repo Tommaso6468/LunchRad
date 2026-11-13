@@ -1,0 +1,538 @@
+/**
+ * One Durable Object per room. It is the single source of truth for who is
+ * in the room and who is host. Everything a client sends is validated here;
+ * roles are checked here and never trusted from the client.
+ *
+ * WebSockets use the Hibernation API, so an idle room costs nothing. All
+ * timers (30-minute cap, empty room, host away, hello timeout) share the one
+ * Durable Object alarm, recomputed after every change.
+ */
+import {
+  CLOSE_CODES,
+  LIMITS,
+  clientMessage,
+  nameKey,
+  normalizeName,
+  type ClientMessage,
+  type CloseReason,
+  type RoomEvent,
+  type RoomState,
+  type ServerMessage,
+} from '@lunchrad/shared';
+import { DurableObject } from 'cloudflare:workers';
+import { randomId, randomToken, sha256Base64url } from './crypto.ts';
+import type { Env } from './env.ts';
+
+interface RoomMeta {
+  code: string;
+  createdAt: number;
+  expiresAt: number;
+  hostId: string;
+  /** Set while no participant is connected. */
+  emptySince: number | null;
+  /** Set while the host is disconnected. */
+  hostAwaySince: number | null;
+}
+
+interface Participant {
+  id: string;
+  name: string;
+  tokenHash: string;
+  joinedAt: number;
+}
+
+interface SocketAttachment {
+  /** Participant id once the socket has sent a valid hello. */
+  pid: string | null;
+  openedAt: number;
+}
+
+export interface Credentials {
+  participantId: string;
+  token: string;
+}
+export type InitResult =
+  ({ ok: true } & Credentials) | { ok: false; error: 'exists' | 'invalid_name' };
+export type JoinResult =
+  | ({ ok: true } & Credentials)
+  | { ok: false; error: 'room_not_found' | 'invalid_name' | 'name_taken' | 'room_full' };
+
+const OPEN = 1;
+
+export class Room extends DurableObject<Env> {
+  private meta: RoomMeta | null = null;
+  private readonly participants = new Map<string, Participant>();
+  private readonly tokenIndex = new Map<string, string>();
+  private readonly budgets = new WeakMap<WebSocket, { windowStart: number; count: number }>();
+
+  /** Overridable in tests. */
+  now: () => number = () => Date.now();
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    void ctx.blockConcurrencyWhile(async () => {
+      this.meta = (await ctx.storage.get<RoomMeta>('meta')) ?? null;
+      const stored = await ctx.storage.list<Participant>({ prefix: 'p:' });
+      for (const p of stored.values()) {
+        this.participants.set(p.id, p);
+        this.tokenIndex.set(p.tokenHash, p.id);
+      }
+    });
+    // Answer keep-alive pings without waking the object.
+    ctx.setWebSocketAutoResponse(
+      new WebSocketRequestResponsePair('{"type":"ping"}', '{"type":"pong"}'),
+    );
+  }
+
+  // ---------- RPC from the Worker ----------
+
+  async init(code: string, rawName: string): Promise<InitResult> {
+    if (this.meta) return { ok: false, error: 'exists' };
+    const name = normalizeName(rawName);
+    if (!name) return { ok: false, error: 'invalid_name' };
+
+    const now = this.now();
+    const host = await this.newParticipant(name, now);
+    this.meta = {
+      code,
+      createdAt: now,
+      expiresAt: now + LIMITS.roomLifetimeMs,
+      hostId: host.participant.id,
+      // Nobody is connected yet; if the host never connects, the room closes.
+      emptySince: now,
+      hostAwaySince: null,
+    };
+    await this.persistMeta();
+    await this.scheduleAlarm();
+    return { ok: true, participantId: host.participant.id, token: host.token };
+  }
+
+  async join(rawName: string): Promise<JoinResult> {
+    if (!this.meta) return { ok: false, error: 'room_not_found' };
+    const name = normalizeName(rawName);
+    if (!name) return { ok: false, error: 'invalid_name' };
+    if (this.participants.size >= LIMITS.maxParticipants) return { ok: false, error: 'room_full' };
+    const key = nameKey(name);
+    for (const p of this.participants.values()) {
+      if (nameKey(p.name) === key) return { ok: false, error: 'name_taken' };
+    }
+    const { participant, token } = await this.newParticipant(name, this.now());
+    this.broadcastState();
+    return { ok: true, participantId: participant.id, token };
+  }
+
+  // ---------- WebSocket upgrade ----------
+
+  override async fetch(request: Request): Promise<Response> {
+    if (!this.meta) return new Response('Niet gevonden', { status: 404 });
+    if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
+      return new Response('Verwacht WebSocket', { status: 426 });
+    }
+    const { 0: client, 1: server } = new WebSocketPair();
+    this.ctx.acceptWebSocket(server);
+    const attachment: SocketAttachment = { pid: null, openedAt: this.now() };
+    server.serializeAttachment(attachment);
+    await this.scheduleAlarm();
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  override async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
+    if (!this.meta) {
+      this.safeClose(ws, CLOSE_CODES.roomClosed, 'closed');
+      return;
+    }
+    if (typeof raw !== 'string') {
+      this.safeClose(ws, 1003, 'text only');
+      return;
+    }
+    if (raw.length > LIMITS.maxMessageChars) {
+      this.safeClose(ws, CLOSE_CODES.tooLarge, 'too large');
+      return;
+    }
+    if (!this.withinBudget(ws)) {
+      this.send(ws, { type: 'error', error: 'rate_limited' });
+      this.safeClose(ws, CLOSE_CODES.rateLimited, 'rate limited');
+      return;
+    }
+
+    let parsed: ClientMessage;
+    try {
+      const result = clientMessage.safeParse(JSON.parse(raw));
+      if (!result.success) throw new Error('invalid');
+      parsed = result.data;
+    } catch {
+      this.send(ws, { type: 'error', error: 'bad_message' });
+      if (!this.attachment(ws).pid) this.safeClose(ws, CLOSE_CODES.unauthorized, 'bad message');
+      return;
+    }
+
+    const attachment = this.attachment(ws);
+    if (parsed.type === 'hello') {
+      await this.handleHello(ws, attachment, parsed.token);
+      return;
+    }
+    const pid = attachment.pid;
+    if (!pid || !this.participants.has(pid)) {
+      this.send(ws, { type: 'error', error: 'unauthorized' });
+      this.safeClose(ws, CLOSE_CODES.unauthorized, 'unauthorized');
+      return;
+    }
+
+    switch (parsed.type) {
+      case 'ping':
+        this.send(ws, { type: 'pong' });
+        return;
+      case 'kick':
+        await this.handleKick(ws, pid, parsed.participantId);
+        return;
+      case 'transfer_host':
+        await this.handleTransfer(ws, pid, parsed.participantId);
+        return;
+      case 'leave':
+        await this.handleLeave(pid);
+        return;
+      case 'end_room':
+        if (!this.isHost(pid)) {
+          this.send(ws, { type: 'error', error: 'not_host' });
+          return;
+        }
+        await this.closeRoom('ended');
+        return;
+    }
+  }
+
+  override async webSocketClose(ws: WebSocket, code: number): Promise<void> {
+    // Complete the close handshake; harmless if the runtime already did.
+    this.safeClose(ws, code === 1005 ? 1000 : code, '');
+    await this.handleDisconnect(ws);
+  }
+
+  override async webSocketError(ws: WebSocket): Promise<void> {
+    await this.handleDisconnect(ws);
+  }
+
+  override async alarm(): Promise<void> {
+    const meta = this.meta;
+    if (!meta) return;
+    const now = this.now();
+
+    if (now >= meta.expiresAt) {
+      await this.closeRoom('expired');
+      return;
+    }
+    if (meta.emptySince !== null && now >= meta.emptySince + LIMITS.emptyRoomMs) {
+      await this.closeRoom('empty');
+      return;
+    }
+    await this.maybeHandOffHost(now);
+
+    for (const ws of this.ctx.getWebSockets()) {
+      const att = this.attachment(ws);
+      if (!att.pid && now >= att.openedAt + LIMITS.helloTimeoutMs) {
+        this.safeClose(ws, CLOSE_CODES.unauthorized, 'hello timeout');
+      }
+    }
+    await this.scheduleAlarm();
+  }
+
+  // ---------- Handlers ----------
+
+  private async handleHello(ws: WebSocket, att: SocketAttachment, token: string): Promise<void> {
+    const meta = this.meta;
+    if (!meta) return;
+    if (att.pid) return; // Already authenticated; ignore repeats.
+    const pid = this.tokenIndex.get(await sha256Base64url(token));
+    if (!pid || !this.participants.has(pid)) {
+      this.send(ws, { type: 'error', error: 'unauthorized' });
+      this.safeClose(ws, CLOSE_CODES.unauthorized, 'unauthorized');
+      return;
+    }
+    ws.serializeAttachment({ ...att, pid } satisfies SocketAttachment);
+    meta.emptySince = null;
+    if (pid === meta.hostId) meta.hostAwaySince = null;
+    await this.persistMeta();
+
+    this.send(ws, { type: 'welcome', you: pid, state: this.stateView() });
+    await this.maybeHandOffHost(this.now());
+    this.broadcastState();
+    await this.scheduleAlarm();
+  }
+
+  private async handleKick(ws: WebSocket, pid: string, target: string): Promise<void> {
+    if (!this.isHost(pid)) {
+      this.send(ws, { type: 'error', error: 'not_host' });
+      return;
+    }
+    const victim = this.participants.get(target);
+    if (!victim || target === pid) {
+      this.send(ws, { type: 'error', error: 'unknown_participant' });
+      return;
+    }
+    await this.removeParticipant(target, CLOSE_CODES.kicked, 'kicked');
+    this.broadcastEvent({ type: 'kicked', name: victim.name });
+    this.broadcastState();
+    await this.afterMembershipChange();
+  }
+
+  private async handleTransfer(ws: WebSocket, pid: string, target: string): Promise<void> {
+    const meta = this.meta;
+    if (!meta) return;
+    if (!this.isHost(pid)) {
+      this.send(ws, { type: 'error', error: 'not_host' });
+      return;
+    }
+    if (!this.participants.has(target) || target === pid) {
+      this.send(ws, { type: 'error', error: 'unknown_participant' });
+      return;
+    }
+    if (!this.connectedIds().has(target)) {
+      this.send(ws, { type: 'error', error: 'not_connected' });
+      return;
+    }
+    meta.hostId = target;
+    meta.hostAwaySince = null;
+    await this.persistMeta();
+    this.broadcastEvent({ type: 'host_changed', hostId: target, auto: false });
+    this.broadcastState();
+    await this.scheduleAlarm();
+  }
+
+  private async handleLeave(pid: string): Promise<void> {
+    const meta = this.meta;
+    if (!meta) return;
+    const wasHost = pid === meta.hostId;
+    await this.removeParticipant(pid, CLOSE_CODES.left, 'left');
+    if (this.participants.size === 0) {
+      await this.closeRoom('ended');
+      return;
+    }
+    if (wasHost) {
+      const next = this.pickNextHost();
+      if (next) {
+        meta.hostId = next.id;
+        meta.hostAwaySince = this.connectedIds().has(next.id) ? null : this.now();
+        await this.persistMeta();
+        this.broadcastEvent({ type: 'host_changed', hostId: next.id, auto: true });
+      }
+    }
+    this.broadcastState();
+    await this.afterMembershipChange();
+  }
+
+  private async handleDisconnect(closing: WebSocket): Promise<void> {
+    const meta = this.meta;
+    if (!meta) return;
+    const pid = this.attachment(closing).pid;
+    const connected = this.connectedIds(closing);
+    let changed = false;
+    if (pid && pid === meta.hostId && !connected.has(pid) && meta.hostAwaySince === null) {
+      meta.hostAwaySince = this.now();
+      changed = true;
+    }
+    if (connected.size === 0 && meta.emptySince === null) {
+      meta.emptySince = this.now();
+      changed = true;
+    }
+    if (changed) await this.persistMeta();
+    if (pid) this.broadcastState(closing);
+    await this.scheduleAlarm();
+  }
+
+  /** Moves the host role to the longest-present connected participant once the host has been away too long. */
+  private async maybeHandOffHost(now: number): Promise<void> {
+    const meta = this.meta;
+    if (!meta || meta.hostAwaySince === null) return;
+    if (now < meta.hostAwaySince + LIMITS.hostAwayMs) return;
+    const connected = this.connectedIds();
+    if (connected.has(meta.hostId)) {
+      meta.hostAwaySince = null;
+      await this.persistMeta();
+      return;
+    }
+    const next = this.sortedParticipants().find((p) => p.id !== meta.hostId && connected.has(p.id));
+    if (!next) return; // Nobody connected to hand over to; the empty-room timer applies.
+    meta.hostId = next.id;
+    meta.hostAwaySince = null;
+    await this.persistMeta();
+    this.broadcastEvent({ type: 'host_changed', hostId: next.id, auto: true });
+    this.broadcastState();
+  }
+
+  private async afterMembershipChange(): Promise<void> {
+    const meta = this.meta;
+    if (!meta) return;
+    if (this.connectedIds().size === 0 && meta.emptySince === null) {
+      meta.emptySince = this.now();
+      await this.persistMeta();
+    }
+    await this.scheduleAlarm();
+  }
+
+  // ---------- Room lifecycle ----------
+
+  private async closeRoom(reason: CloseReason): Promise<void> {
+    for (const ws of this.ctx.getWebSockets()) {
+      this.send(ws, { type: 'closed', reason });
+      this.safeClose(ws, CLOSE_CODES.roomClosed, reason);
+    }
+    this.meta = null;
+    this.participants.clear();
+    this.tokenIndex.clear();
+    // Delete everything: tokens of a closed room can never be used again, and
+    // the same code can later start a completely fresh room.
+    await this.ctx.storage.deleteAlarm();
+    await this.ctx.storage.deleteAll();
+  }
+
+  private async scheduleAlarm(): Promise<void> {
+    const meta = this.meta;
+    if (!meta) return;
+    const now = this.now();
+    const deadlines = [meta.expiresAt];
+    if (meta.emptySince !== null) deadlines.push(meta.emptySince + LIMITS.emptyRoomMs);
+    if (meta.hostAwaySince !== null && meta.hostAwaySince + LIMITS.hostAwayMs > now) {
+      deadlines.push(meta.hostAwaySince + LIMITS.hostAwayMs);
+    }
+    for (const ws of this.ctx.getWebSockets()) {
+      const att = this.attachment(ws);
+      if (!att.pid) deadlines.push(att.openedAt + LIMITS.helloTimeoutMs);
+    }
+    await this.ctx.storage.setAlarm(Math.max(Math.min(...deadlines), now + 50));
+  }
+
+  // ---------- Participants ----------
+
+  private async newParticipant(
+    name: string,
+    now: number,
+  ): Promise<{ participant: Participant; token: string }> {
+    const token = randomToken();
+    const participant: Participant = {
+      id: randomId(),
+      name,
+      tokenHash: await sha256Base64url(token),
+      joinedAt: now,
+    };
+    this.participants.set(participant.id, participant);
+    this.tokenIndex.set(participant.tokenHash, participant.id);
+    await this.ctx.storage.put(`p:${participant.id}`, participant);
+    return { participant, token };
+  }
+
+  private async removeParticipant(pid: string, code: number, reason: string): Promise<void> {
+    const participant = this.participants.get(pid);
+    if (!participant) return;
+    this.participants.delete(pid);
+    this.tokenIndex.delete(participant.tokenHash);
+    await this.ctx.storage.delete(`p:${pid}`);
+    for (const ws of this.ctx.getWebSockets()) {
+      if (this.attachment(ws).pid === pid) {
+        ws.serializeAttachment({ ...this.attachment(ws), pid: null } satisfies SocketAttachment);
+        this.safeClose(ws, code, reason);
+      }
+    }
+  }
+
+  private pickNextHost(): Participant | undefined {
+    const connected = this.connectedIds();
+    const sorted = this.sortedParticipants();
+    return sorted.find((p) => connected.has(p.id)) ?? sorted[0];
+  }
+
+  private sortedParticipants(): Participant[] {
+    return [...this.participants.values()].sort((a, b) => a.joinedAt - b.joinedAt);
+  }
+
+  private isHost(pid: string): boolean {
+    return this.meta?.hostId === pid;
+  }
+
+  /** Participant ids with at least one open, authenticated socket. */
+  private connectedIds(exclude?: WebSocket): Set<string> {
+    const ids = new Set<string>();
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === exclude || ws.readyState !== OPEN) continue;
+      const pid = this.attachment(ws).pid;
+      if (pid && this.participants.has(pid)) ids.add(pid);
+    }
+    return ids;
+  }
+
+  // ---------- Messaging ----------
+
+  private stateView(exclude?: WebSocket): RoomState {
+    const meta = this.meta;
+    if (!meta) throw new Error('No room');
+    const connected = this.connectedIds(exclude);
+    return {
+      code: meta.code,
+      hostId: meta.hostId,
+      createdAt: meta.createdAt,
+      expiresAt: meta.expiresAt,
+      participants: this.sortedParticipants().map((p) => ({
+        id: p.id,
+        name: p.name,
+        connected: connected.has(p.id),
+        joinedAt: p.joinedAt,
+      })),
+    };
+  }
+
+  private broadcastState(exclude?: WebSocket): void {
+    if (!this.meta) return;
+    this.broadcast({ type: 'state', state: this.stateView(exclude) }, exclude);
+  }
+
+  private broadcastEvent(event: RoomEvent): void {
+    this.broadcast({ type: 'event', event });
+  }
+
+  private broadcast(message: ServerMessage, exclude?: WebSocket): void {
+    const data = JSON.stringify(message);
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === exclude || ws.readyState !== OPEN) continue;
+      const pid = this.attachment(ws).pid;
+      if (pid && this.participants.has(pid)) this.sendRaw(ws, data);
+    }
+  }
+
+  private send(ws: WebSocket, message: ServerMessage): void {
+    this.sendRaw(ws, JSON.stringify(message));
+  }
+
+  private sendRaw(ws: WebSocket, data: string): void {
+    try {
+      ws.send(data);
+    } catch {
+      // Socket already closing; the close handler cleans up.
+    }
+  }
+
+  private safeClose(ws: WebSocket, code: number, reason: string): void {
+    try {
+      ws.close(code, reason);
+    } catch {
+      // Already closed.
+    }
+  }
+
+  private attachment(ws: WebSocket): SocketAttachment {
+    const att = ws.deserializeAttachment() as SocketAttachment | null;
+    return att ?? { pid: null, openedAt: 0 };
+  }
+
+  private withinBudget(ws: WebSocket): boolean {
+    const now = this.now();
+    const budget = this.budgets.get(ws);
+    if (!budget || now - budget.windowStart >= LIMITS.socketWindowMs) {
+      this.budgets.set(ws, { windowStart: now, count: 1 });
+      return true;
+    }
+    budget.count += 1;
+    return budget.count <= LIMITS.socketMessagesPerWindow;
+  }
+
+  private async persistMeta(): Promise<void> {
+    if (this.meta) await this.ctx.storage.put('meta', this.meta);
+  }
+}

@@ -2,6 +2,8 @@
   "$schema": "../node_modules/wrangler/config-schema.json",
   // Local development uses the top-level settings. CI deploys with
   // --env staging (on every merge to main) or --env production (on a release).
+  // Durable Object bindings and rate limiters are not inherited by
+  // environments, so each environment repeats them.
   "name": "lunchrad-dev",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
@@ -21,6 +23,19 @@
   "observability": {
     "enabled": true,
   },
+  // One Durable Object per room, SQLite-backed (the only kind on the free plan).
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
+  "durable_objects": {
+    "bindings": [{ "name": "ROOMS", "class_name": "Room" }],
+  },
+  // Approximate, per-location limits. Counters are shared by namespace_id, so
+  // every environment gets its own ids.
+  "ratelimits": [
+    { "name": "SESSION_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
+    { "name": "CREATE_LIMITER", "namespace_id": "1002", "simple": { "limit": 5, "period": 60 } },
+    { "name": "JOIN_LIMITER", "namespace_id": "1003", "simple": { "limit": 60, "period": 60 } },
+    { "name": "WS_LIMITER", "namespace_id": "1004", "simple": { "limit": 120, "period": 60 } },
+  ],
   "vars": {
     "ENVIRONMENT": "development",
   },
@@ -32,6 +47,31 @@
       "vars": {
         "ENVIRONMENT": "staging",
       },
+      "durable_objects": {
+        "bindings": [{ "name": "ROOMS", "class_name": "Room" }],
+      },
+      "ratelimits": [
+        {
+          "name": "SESSION_LIMITER",
+          "namespace_id": "2001",
+          "simple": { "limit": 10, "period": 60 },
+        },
+        {
+          "name": "CREATE_LIMITER",
+          "namespace_id": "2002",
+          "simple": { "limit": 5, "period": 60 },
+        },
+        {
+          "name": "JOIN_LIMITER",
+          "namespace_id": "2003",
+          "simple": { "limit": 60, "period": 60 },
+        },
+        {
+          "name": "WS_LIMITER",
+          "namespace_id": "2004",
+          "simple": { "limit": 120, "period": 60 },
+        },
+      ],
     },
     "production": {
       "name": "lunchrad",
@@ -40,6 +80,31 @@
       "vars": {
         "ENVIRONMENT": "production",
       },
+      "durable_objects": {
+        "bindings": [{ "name": "ROOMS", "class_name": "Room" }],
+      },
+      "ratelimits": [
+        {
+          "name": "SESSION_LIMITER",
+          "namespace_id": "3001",
+          "simple": { "limit": 10, "period": 60 },
+        },
+        {
+          "name": "CREATE_LIMITER",
+          "namespace_id": "3002",
+          "simple": { "limit": 5, "period": 60 },
+        },
+        {
+          "name": "JOIN_LIMITER",
+          "namespace_id": "3003",
+          "simple": { "limit": 60, "period": 60 },
+        },
+        {
+          "name": "WS_LIMITER",
+          "namespace_id": "3004",
+          "simple": { "limit": 120, "period": 60 },
+        },
+      ],
     },
   },
 }

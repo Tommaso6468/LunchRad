@@ -11,6 +11,7 @@
     "deploy:production": "wrangler deploy --env production"
   },
   "dependencies": {
+    "@lunchrad/shared": "*",
     "hono": "^4.13.0"
   },
   "devDependencies": {
