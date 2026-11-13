@@ -135,6 +135,7 @@ export const nl = {
     resultTitle: 'We gaan naar',
     candidateTitle: 'Het rad koos',
     openVote: 'Stemmen',
+    finalBar: 'Dit is de keuze.',
     final: 'Dit is de keuze. De kamer sluit over 5 minuten.',
     maps: 'Route in Google Maps',
     hostHint: 'Trek aan de hendel. Boosts en de lijst gaan dan op slot.',
@@ -172,7 +173,9 @@ export const nl = {
     removedByHost: (what: string) => `De host heeft ${what} van het rad gehaald`,
     respin: (what: string) => `Opnieuw! ${what} is van het rad gehaald`,
     noRespin: (yes: number, eligible: number) =>
-      `${yes} van de ${eligible} wilden opnieuw draaien: de keuze blijft staan`,
+      yes === 0
+        ? 'Niemand wilde opnieuw draaien: de keuze blijft staan'
+        : `${yes} van de ${eligible} wilden opnieuw draaien: niet genoeg, de keuze blijft staan`,
     yourBoostGone: (what: string) => `Je boost is weg: ${what} is van het rad gehaald`,
   },
 

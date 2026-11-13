@@ -346,7 +346,7 @@ export class Room {
   protected spinBarText(phase: string, isHost: boolean): string {
     if (phase === 'spinning') return nl.reel.spinning;
     if (phase === 'voting') return nl.vote.barText;
-    if (phase === 'result') return '';
+    if (phase === 'result') return nl.reel.finalBar;
     return isHost ? nl.reel.hostHint : nl.reel.waiting;
   }
 

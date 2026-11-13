@@ -47,7 +47,7 @@ import { VotePanel } from './vote-panel';
           <p class="hint">{{ t.hostHint }}</p>
         }
         @if (winner(); as w) {
-          <section class="result-card" aria-labelledby="result-title">
+          <section #resultCard class="result-card" aria-labelledby="result-title">
             <p id="result-title" class="muted">
               {{ state().phase === 'result' ? t.resultTitle : t.candidateTitle }}
             </p>
@@ -97,6 +97,7 @@ export class SpinOverlay {
   protected readonly isOpen = signal(false);
   /** Restaurant id this phone's reel stopped on. */
   protected readonly landed = signal<string | null>(null);
+  private readonly resultCard = viewChild<ElementRef<HTMLElement>>('resultCard');
   private shownSpin = 0;
 
   protected readonly names = computed(
@@ -134,6 +135,13 @@ export class SpinOverlay {
       });
     });
   }
+
+  /** On small phones the vote sits below the reel: bring it into view once the reel stops. */
+  private readonly revealResult = effect(() => {
+    const card = this.resultCard()?.nativeElement;
+    if (!card) return;
+    requestAnimationFrame(() => card.scrollIntoView({ block: 'nearest' }));
+  });
 
   open(): void {
     const el = this.dialog().nativeElement;
