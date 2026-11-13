@@ -1,0 +1,208 @@
+import {
+  LIMITS,
+  normalizeCategory,
+  normalizeMapsUrl,
+  normalizeRestaurantName,
+} from '@lunchrad/shared';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SEED_RESTAURANTS } from '../src/seed-preset.ts';
+import {
+  connectAs,
+  createRoom,
+  joinRoom,
+  mockTurnstile,
+  type Creds,
+  type TestSocket,
+} from './helpers.ts';
+
+beforeEach(() => {
+  mockTurnstile();
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+async function join(code: string, name: string): Promise<Creds> {
+  const res = await joinRoom(code, name);
+  expect(res.status).toBe(201);
+  return (await res.json()) as Creds;
+}
+
+async function add(socket: TestSocket, name: string, extra: Record<string, unknown> = {}) {
+  socket.send({ type: 'add_restaurant', name, ...extra });
+  const stored = normalizeRestaurantName(name);
+  const state = await socket.stateWhere((s) => s.restaurants.some((r) => r.name === stored));
+  const restaurant = state.restaurants.find((r) => r.name === stored);
+  if (!restaurant) throw new Error('not added');
+  return restaurant;
+}
+
+/** Two participants in one room: the host and Tom, both connected. */
+async function room() {
+  const host = await createRoom('Sanne');
+  const tom = await join(host.code, 'Tom');
+  const hostSocket = await connectAs(host);
+  const tomSocket = await connectAs(tom);
+  return { host, tom, hostSocket, tomSocket };
+}
+
+describe('seed preset', () => {
+  it('only contains entries that pass the restaurant rules', () => {
+    expect(SEED_RESTAURANTS.length).toBeLessThanOrEqual(LIMITS.maxRestaurants);
+    for (const seed of SEED_RESTAURANTS) {
+      expect(normalizeRestaurantName(seed.name), seed.name).toBe(seed.name);
+      expect(normalizeCategory(seed.category), seed.name).not.toBeUndefined();
+      expect(normalizeMapsUrl(seed.mapsUrl), seed.name).not.toBeUndefined();
+    }
+  });
+});
+
+describe('adding restaurants', () => {
+  it('shows a new restaurant to everyone, with who added it', async () => {
+    const { tom, hostSocket, tomSocket } = await room();
+    const wok = await add(tomSocket, '  Wok   To Go ', {
+      category: 'Chinees',
+      mapsUrl: 'https://maps.app.goo.gl/AbC123#frag',
+    });
+    expect(wok).toEqual({
+      id: expect.stringMatching(/^[a-f0-9]{16}$/),
+      name: 'Wok To Go',
+      category: 'Chinees',
+      mapsUrl: 'https://maps.app.goo.gl/AbC123',
+      addedBy: tom.participantId,
+    });
+    const seen = await hostSocket.stateWhere((s) => s.restaurants.length > 0);
+    expect(seen.restaurants[0]?.name).toBe('Wok To Go');
+    expect((await hostSocket.next('event')).event).toMatchObject({ type: 'restaurant_added' });
+  });
+
+  it('needs only a name', async () => {
+    const { hostSocket } = await room();
+    const r = await add(hostSocket, 'Bagels & Beans');
+    expect(r.category).toBeNull();
+    expect(r.mapsUrl).toBeNull();
+  });
+
+  it('rejects invalid names, categories and non-Google-Maps links', async () => {
+    const { hostSocket } = await room();
+    const cases: [Record<string, unknown>, string][] = [
+      [{ name: '<img src=x onerror=alert(1)>' }, 'invalid_restaurant'],
+      [{ name: 'Wok', category: '<b>' }, 'invalid_category'],
+      [{ name: 'Wok', mapsUrl: 'javascript:alert(1)' }, 'invalid_maps_url'],
+      [{ name: 'Wok', mapsUrl: 'https://evil.example/maps' }, 'invalid_maps_url'],
+    ];
+    for (const [extra, error] of cases) {
+      hostSocket.send({ type: 'add_restaurant', ...extra });
+      expect((await hostSocket.next('error')).error, JSON.stringify(extra)).toBe(error);
+    }
+  });
+
+  it('keeps names unique per room, case-insensitively', async () => {
+    const { hostSocket, tomSocket } = await room();
+    await add(hostSocket, 'Wok To Go');
+    tomSocket.send({ type: 'add_restaurant', name: 'wok to go' });
+    expect((await tomSocket.next('error')).error).toBe('restaurant_exists');
+  });
+
+  it('caps a room at 30 restaurants', async () => {
+    const host = await createRoom('Sanne');
+    const tom = await join(host.code, 'Tom');
+    // Two sockets, so neither hits the per-socket message budget.
+    const a = await connectAs(host);
+    const b = await connectAs(tom);
+    for (let i = 0; i < LIMITS.maxRestaurants; i++) {
+      await add(i % 2 ? b : a, `Plek ${i}`);
+      if (i % 15 === 14) await new Promise((r) => setTimeout(r, 0));
+    }
+    const c = await connectAs(host);
+    c.send({ type: 'add_restaurant', name: 'Eén te veel' });
+    expect((await c.next('error')).error).toBe('too_many_restaurants');
+  }, 20_000);
+});
+
+describe('removing restaurants', () => {
+  it('participants can remove only what they added; the host can remove anything', async () => {
+    const { tom, hostSocket, tomSocket } = await room();
+    const hostsPick = await add(hostSocket, 'Bagels & Beans');
+    const tomsPick = await add(tomSocket, 'Wok To Go');
+
+    tomSocket.send({ type: 'remove_restaurant', restaurantId: hostsPick.id });
+    expect((await tomSocket.next('error')).error).toBe('not_allowed');
+
+    tomSocket.send({ type: 'remove_restaurant', restaurantId: tomsPick.id });
+    await hostSocket.stateWhere((s) => !s.restaurants.some((r) => r.id === tomsPick.id));
+
+    const tomsSecond = await add(tomSocket, 'Pho 99');
+    hostSocket.send({ type: 'remove_restaurant', restaurantId: tomsSecond.id });
+    const removed = await tomSocket.stateWhere(
+      (s) => !s.restaurants.some((r) => r.id === tomsSecond.id),
+    );
+    expect(removed.restaurants.map((r) => r.name)).toEqual(['Bagels & Beans']);
+    void tom;
+  });
+
+  it('clears boosts on a removed restaurant and tells everyone whose boost went', async () => {
+    const { tom, hostSocket, tomSocket } = await room();
+    const wok = await add(hostSocket, 'Wok To Go');
+    tomSocket.send({ type: 'boost', restaurantId: wok.id });
+    await hostSocket.stateWhere((s) => s.participants.some((p) => p.boost === wok.id));
+
+    hostSocket.send({ type: 'remove_restaurant', restaurantId: wok.id });
+    const state = await tomSocket.stateWhere((s) => s.restaurants.length === 0);
+    expect(state.participants.every((p) => p.boost === null)).toBe(true);
+    const removed = await tomSocket.eventWhere((e) => e.type === 'restaurant_removed');
+    expect(removed).toEqual({
+      type: 'restaurant_removed',
+      name: 'Wok To Go',
+      byHost: false,
+      clearedBoosts: [tom.participantId],
+    });
+  });
+
+  it('rejects unknown restaurant ids', async () => {
+    const { hostSocket } = await room();
+    hostSocket.send({ type: 'remove_restaurant', restaurantId: '0000000000000000' });
+    expect((await hostSocket.next('error')).error).toBe('unknown_restaurant');
+  });
+});
+
+describe('boosts', () => {
+  it('one boost per participant: boosting another moves it, unboost removes it', async () => {
+    const { tom, hostSocket, tomSocket } = await room();
+    const wok = await add(hostSocket, 'Wok To Go');
+    const pho = await add(hostSocket, 'Pho 99');
+    const boostOf = (s: { participants: { id: string; boost: string | null }[] }) =>
+      s.participants.find((p) => p.id === tom.participantId)?.boost;
+
+    tomSocket.send({ type: 'boost', restaurantId: wok.id });
+    await hostSocket.stateWhere((s) => boostOf(s) === wok.id);
+    tomSocket.send({ type: 'boost', restaurantId: pho.id });
+    await hostSocket.stateWhere((s) => boostOf(s) === pho.id);
+    tomSocket.send({ type: 'unboost' });
+    await hostSocket.stateWhere((s) => boostOf(s) === null);
+
+    const boosts = hostSocket.messages
+      .filter((m) => m.type === 'event' && m.event.type === 'boosted')
+      .map((m) => (m.type === 'event' ? m.event : null));
+    expect(boosts).toEqual([
+      { type: 'boosted', participantId: tom.participantId, restaurantId: wok.id, moved: false },
+      { type: 'boosted', participantId: tom.participantId, restaurantId: pho.id, moved: true },
+    ]);
+  });
+
+  it('cannot boost a restaurant that does not exist', async () => {
+    const { tomSocket } = await room();
+    tomSocket.send({ type: 'boost', restaurantId: '0000000000000000' });
+    expect((await tomSocket.next('error')).error).toBe('unknown_restaurant');
+  });
+
+  it('a removed participant takes their boost with them', async () => {
+    const { tom, hostSocket, tomSocket } = await room();
+    const wok = await add(hostSocket, 'Wok To Go');
+    tomSocket.send({ type: 'boost', restaurantId: wok.id });
+    await hostSocket.stateWhere((s) => s.participants.some((p) => p.boost === wok.id));
+    hostSocket.send({ type: 'kick', participantId: tom.participantId });
+    const state = await hostSocket.stateWhere((s) => s.participants.length === 1);
+    expect(state.participants.some((p) => p.boost !== null)).toBe(false);
+  });
+});

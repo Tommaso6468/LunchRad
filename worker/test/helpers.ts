@@ -113,6 +113,10 @@ export interface TestSocket {
   stateWhere(
     predicate: (state: Extract<ServerMessage, { type: 'state' }>['state']) => boolean,
   ): Promise<Extract<ServerMessage, { type: 'state' }>['state']>;
+  /** Resolves with the next event for which the predicate holds. */
+  eventWhere(
+    predicate: (event: Extract<ServerMessage, { type: 'event' }>['event']) => boolean,
+  ): Promise<Extract<ServerMessage, { type: 'event' }>['event']>;
   send(message: unknown): void;
   closed: Promise<{ code: number; reason: string }>;
 }
@@ -172,7 +176,22 @@ export async function openSocket(
     }
   };
 
-  return { ws, messages, next, stateWhere, send: (m) => ws.send(JSON.stringify(m)), closed };
+  const eventWhere: TestSocket['eventWhere'] = async (predicate) => {
+    for (;;) {
+      const { event } = await next('event');
+      if (predicate(event)) return event;
+    }
+  };
+
+  return {
+    ws,
+    messages,
+    next,
+    stateWhere,
+    eventWhere,
+    send: (m) => ws.send(JSON.stringify(m)),
+    closed,
+  };
 }
 
 /** Opens a socket and authenticates it; returns it after the welcome. */
