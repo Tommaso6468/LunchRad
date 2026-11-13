@@ -117,12 +117,19 @@ export interface TestSocket {
   closed: Promise<{ code: number; reason: string }>;
 }
 
+/**
+ * Opens a WebSocket to a room. `team` is the team session offered as a
+ * subprotocol: undefined fetches a valid one, null offers none.
+ */
 export async function openSocket(
   code: string,
   origin: string | null = ORIGIN,
+  team: string | null | undefined = undefined,
 ): Promise<TestSocket> {
   const headers: Record<string, string> = { Upgrade: 'websocket' };
   if (origin) headers['Origin'] = origin;
+  const session = team === undefined ? await teamToken() : team;
+  if (session !== null) headers['Sec-WebSocket-Protocol'] = `lunchrad.v1, team.${session}`;
   const res = await call(`/api/rooms/${code}/ws`, { headers });
   if (!res.webSocket) throw new Error(`upgrade failed: ${res.status}`);
   const ws = res.webSocket;

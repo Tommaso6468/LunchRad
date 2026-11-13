@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clientMessage, createRoomRequest, sessionRequest } from './protocol.ts';
+import { clientMessage, createRoomRequest, sessionRequest } from './protocol';
 
 const TOKEN = 'A'.repeat(43);
 

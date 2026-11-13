@@ -1,36 +1,54 @@
-/* Self-hosted: IBM Plex Mono has a dotted zero, used for room codes. */
+/* Self-hosted fonts (CSP: font-src 'self').
+   Bagel Fat One: wordmark and headings only. Atkinson Hyperlegible Next:
+   everything people read. IBM Plex Mono: room codes (dotted zero). */
+@import '@fontsource/bagel-fat-one/latin-400.css';
+@import '@fontsource/atkinson-hyperlegible-next/latin-400.css';
+@import '@fontsource/atkinson-hyperlegible-next/latin-700.css';
 @import '@fontsource/ibm-plex-mono/latin-600.css';
 
+/* Palette: a Dutch fairground prize booth. Pistachio enamel, bottle-green
+   ink, ticket tomato, brass. */
 :root {
   color-scheme: light dark;
 
-  --bg: #f6f1e7;
-  --surface: #fffdf8;
-  --text: #1c1a17;
-  --text-muted: #5f5850;
-  --accent: #c2410c;
-  --code-letter: #1c1a17;
-  --code-digit: #c2410c;
+  --bg: #e4f0e8;
+  --surface: #ffffff;
+  --ink: #123029;
+  --muted: #47615a;
+  --line: #b9d3c6;
+  --ticket: #d7263d;
+  --on-ticket: #ffffff;
+  --ticket-digit: #ffe08a;
+  --brass: #e7a928;
+  --ink-on-brass: #123029;
+  --danger: #b3162b;
+  --focus: #1060d0;
+
+  --font-display: 'Bagel Fat One', 'Arial Rounded MT Bold', system-ui, sans-serif;
+  --font-body: 'Atkinson Hyperlegible Next', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-code: 'IBM Plex Mono', ui-monospace, monospace;
 
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 1rem;
   --space-4: 1.5rem;
-  --radius: 0.75rem;
-
-  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-code: 'IBM Plex Mono', ui-monospace, monospace;
+  --space-5: 2.25rem;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #1c1a17;
-    --surface: #26231f;
-    --text: #f6f1e7;
-    --text-muted: #b8afa3;
-    --accent: #fb923c;
-    --code-letter: #f6f1e7;
-    --code-digit: #fb923c;
+    --bg: #0f2a24;
+    --surface: #173a32;
+    --ink: #e9f5ef;
+    --muted: #a9c6bb;
+    --line: #2d5a4e;
+    --ticket: #e23b51;
+    --on-ticket: #ffffff;
+    --ticket-digit: #ffe08a;
+    --brass: #f2c14e;
+    --ink-on-brass: #123029;
+    --danger: #ff6b7d;
+    --focus: #7fb4ff;
   }
 }
 
@@ -40,35 +58,312 @@
   box-sizing: border-box;
 }
 
-html,
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-body);
+html {
   -webkit-text-size-adjust: 100%;
 }
 
-/* Room code: digits differ from letters in colour AND carry an underline,
-   so the distinction does not rely on colour alone. */
-.room-code {
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
+  line-height: 1.5;
+}
+
+.shell {
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: max(var(--space-4), env(safe-area-inset-top)) var(--space-3)
+    max(var(--space-5), env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ---------- Type ---------- */
+
+h1,
+h2 {
+  margin: 0;
+  line-height: 1.15;
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(3rem, 15vw, 4.25rem);
+  letter-spacing: -0.01em;
+  color: var(--ticket);
+  text-shadow: 0.06em 0.06em 0 var(--ink);
+}
+
+.tagline {
+  margin: var(--space-1) 0 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.6rem;
+}
+
+h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.45rem;
+}
+
+p {
+  margin: 0;
+}
+
+.muted,
+.hint {
+  color: var(--muted);
+}
+
+.hint {
+  font-size: 0.9rem;
+}
+
+.error:empty {
+  display: none;
+}
+
+.error {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+/* ---------- Panels ---------- */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-3);
+  background: var(--surface);
+  border: 2px solid var(--ink);
+  border-radius: 1rem;
+}
+
+.masthead {
+  padding-top: var(--space-3);
+}
+
+/* Page components are the shell's children; their sections need the same rhythm. */
+app-home,
+app-room,
+app-team-key-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+label {
+  font-weight: 700;
+}
+
+input {
+  font: inherit;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.6rem 0.8rem;
+  color: var(--ink);
+  background: var(--bg);
+  border: 2px solid var(--ink);
+  border-radius: 0.6rem;
+}
+
+input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.code-input {
   font-family: var(--font-code);
-  font-size: 2rem;
-  letter-spacing: 0.15em;
-  margin: var(--space-2) 0 0;
+  font-weight: 600;
+  font-size: 1.5rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
-.room-code .letter {
-  color: var(--code-letter);
-  font-weight: 600;
+/* ---------- Buttons: chunky arcade buttons that press down ---------- */
+
+button,
+.button {
+  font: inherit;
+  font-weight: 700;
+  min-height: 3rem;
+  padding: 0.6rem 1.2rem;
+  border: 2px solid var(--ink);
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 0 var(--ink);
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  transition:
+    transform 60ms ease-out,
+    box-shadow 60ms ease-out;
 }
 
-.room-code .digit {
-  color: var(--code-digit);
-  font-weight: 600;
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 0.2em;
+button:active:not(:disabled),
+.button:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--ink);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.primary {
+  background: var(--ticket);
+  color: var(--on-ticket);
+}
+
+.secondary {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.danger {
+  background: var(--surface);
+  color: var(--danger);
+  border-color: var(--danger);
+  box-shadow: 0 4px 0 var(--danger);
+}
+
+button.small {
+  background: var(--surface);
+  color: var(--ink);
+  min-height: 2.5rem;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.9rem;
+  box-shadow: 0 3px 0 var(--ink);
+}
+
+button.small.danger {
+  color: var(--danger);
+  box-shadow: 0 3px 0 var(--danger);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+/* ---------- Room ---------- */
+
+.room-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.qr {
+  padding: var(--space-2);
+  background: #ffffff;
+  border: 2px solid var(--ink);
+  border-radius: 0.75rem;
+}
+
+.banner {
+  padding: var(--space-2) var(--space-3);
+  background: var(--brass);
+  color: var(--ink-on-brass);
+  border-radius: 0.6rem;
+  font-weight: 700;
+}
+
+.people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.people li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--line);
+}
+
+.people li:first-child {
+  border-top: 0;
+}
+
+.person {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.offline .name {
+  color: var(--muted);
+}
+
+.badge {
+  padding: 0 0.5rem;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.badge.host {
+  background: var(--brass);
+  color: var(--ink-on-brass);
+  border-color: var(--ink-on-brass);
+}
+
+.status {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.placeholder {
+  padding: var(--space-4) var(--space-3);
+  border: 2px dashed var(--line);
+  border-radius: 1rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.room-foot {
+  display: flex;
+  justify-content: flex-start;
 }
 
 @media (prefers-reduced-motion: reduce) {

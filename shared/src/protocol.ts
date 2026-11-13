@@ -4,13 +4,15 @@
  * anything else. The client parses server messages with them too, so a bug on
  * either side fails loudly instead of rendering garbage.
  */
-import { z } from 'zod';
-import { NAME_MAX_LENGTH } from './names.ts';
-import { ROOM_CODE_LENGTH } from './room-code.ts';
+import * as z from 'zod/mini';
+import { NAME_MAX_LENGTH } from './names';
+import { ROOM_CODE_LENGTH } from './room-code';
 
 export const LIMITS = {
   /** Maximum participants per room. */
   maxParticipants: 20,
+  /** Maximum open sockets per room (a few tabs or devices per person). */
+  maxSockets: 60,
   /** Hard cap on a room's lifetime. */
   roomLifetimeMs: 30 * 60_000,
   /** A room with nobody connected closes after this long. */
@@ -30,19 +32,21 @@ export const LIMITS = {
   teamSessionMs: 90 * 24 * 60 * 60_000,
 } as const;
 
-const name = z.string().min(1).max(100);
-const participantId = z.string().regex(/^[a-f0-9]{16}$/);
-const token = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
-const roomCode = z.string().length(ROOM_CODE_LENGTH);
+const name = z.string().check(z.minLength(1), z.maxLength(100));
+const participantId = z.string().check(z.regex(/^[a-f0-9]{16}$/));
+const token = z.string().check(z.regex(/^[A-Za-z0-9_-]{43}$/));
+const roomCode = z.string().check(z.length(ROOM_CODE_LENGTH));
 
 // ---------- HTTP ----------
 
-export const sessionRequest = z.strictObject({ teamKey: z.string().min(1).max(200) });
+export const sessionRequest = z.strictObject({
+  teamKey: z.string().check(z.minLength(1), z.maxLength(200)),
+});
 export const sessionResponse = z.strictObject({ token: z.string(), expiresAt: z.number() });
 
 export const createRoomRequest = z.strictObject({
   name,
-  turnstileToken: z.string().min(1).max(2048),
+  turnstileToken: z.string().check(z.minLength(1), z.maxLength(2048)),
 });
 export const joinRoomRequest = z.strictObject({ name });
 
@@ -89,7 +93,7 @@ export type ClientMessage = z.infer<typeof clientMessage>;
 
 export const participantView = z.strictObject({
   id: participantId,
-  name: z.string().max(NAME_MAX_LENGTH * 4),
+  name: z.string().check(z.maxLength(NAME_MAX_LENGTH * 4)),
   connected: z.boolean(),
   joinedAt: z.number(),
 });
@@ -100,7 +104,7 @@ export const roomState = z.strictObject({
   hostId: participantId,
   createdAt: z.number(),
   expiresAt: z.number(),
-  participants: z.array(participantView).max(LIMITS.maxParticipants),
+  participants: z.array(participantView).check(z.maxLength(LIMITS.maxParticipants)),
 });
 export type RoomState = z.infer<typeof roomState>;
 
@@ -131,6 +135,14 @@ export const serverMessage = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('pong') }),
 ]);
 export type ServerMessage = z.infer<typeof serverMessage>;
+
+/**
+ * WebSocket subprotocols. Browsers cannot set an Authorization header on a
+ * WebSocket, so the team session travels as a second offered subprotocol
+ * ("team.<token>"); the server answers with WS_PROTOCOL only.
+ */
+export const WS_PROTOCOL = 'lunchrad.v1';
+export const WS_TEAM_PREFIX = 'team.';
 
 /** WebSocket close codes in the 4000 range (application-defined). */
 export const CLOSE_CODES = {

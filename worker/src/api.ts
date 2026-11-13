@@ -3,6 +3,8 @@
  * Zod schema, is rate limited, and fails closed when secrets are missing.
  */
 import {
+  WS_PROTOCOL,
+  WS_TEAM_PREFIX,
   createRoomRequest,
   generateRoomCode,
   joinRoomRequest,
@@ -115,10 +117,12 @@ api.post('/rooms/:code/join', requireTeamSession, async (c) => {
 });
 
 /**
- * WebSocket upgrade. Browsers cannot send an Authorization header on a
- * WebSocket, so the socket authenticates with its participant token in the
- * first message (see Room). Here: same-origin check against cross-site
- * WebSocket hijacking, a rate limit, and a valid code.
+ * WebSocket upgrade. Checked here, before anything reaches a room:
+ * same-origin (no cross-site WebSocket hijacking), a rate limit, a valid
+ * code, and the team session, offered as the subprotocol "team.<token>"
+ * because browsers cannot set headers on a WebSocket. Without a team session
+ * nobody can even learn whether a room code exists. The participant itself
+ * then authenticates with its own token in the first message (see Room).
  */
 api.get('/rooms/:code/ws', async (c) => {
   const env = configured(c);
@@ -133,9 +137,22 @@ api.get('/rooms/:code/ws', async (c) => {
   if (await limited(env.WS_LIMITER, `ws:${clientIp(c.req.raw)}`)) {
     return apiError('rate_limited');
   }
+  const offered = (c.req.header('Sec-WebSocket-Protocol') ?? '').split(',').map((p) => p.trim());
+  const teamToken = offered.find((p) => p.startsWith(WS_TEAM_PREFIX))?.slice(WS_TEAM_PREFIX.length);
+  if (
+    !offered.includes(WS_PROTOCOL) ||
+    !teamToken ||
+    !(await verifyTeamSession(env, teamToken, Date.now()))
+  ) {
+    return apiError('unauthorized');
+  }
   const code = normalizeRoomCode(c.req.param('code') ?? '');
   if (!code) return apiError('room_not_found');
-  return env.ROOMS.get(env.ROOMS.idFromName(code)).fetch(c.req.raw);
+  // Forward without the session token: the room does not need it.
+  const headers = new Headers(c.req.raw.headers);
+  headers.set('Sec-WebSocket-Protocol', WS_PROTOCOL);
+  const forwarded = new Request(c.req.raw, { headers });
+  return env.ROOMS.get(env.ROOMS.idFromName(code)).fetch(forwarded);
 });
 
 api.all('*', () => apiError('not_found'));

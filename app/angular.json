@@ -50,7 +50,8 @@
                 },
                 "fonts": true
               },
-              "sourceMap": false
+              "sourceMap": false,
+              "subresourceIntegrity": true
             },
             "development": {
               "optimization": false,

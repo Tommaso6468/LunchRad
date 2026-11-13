@@ -4,8 +4,11 @@ Kies samen waar jullie gaan lunchen. A realtime lunch wheel for a small team:
 join a room with a code, add and boost restaurants, let the host spin the
 arcade reel, and vote on a respin.
 
-Status: **M0 — Foundation**. The app shell, security baseline and CI/CD are in
-place; room features start in M1.
+Status: **M1 — Rooms and realtime**. Teams enter a shared team key once,
+create rooms (with a bot check) or join with a code, QR code or link, and see
+each other live. The host can hand over the role, remove people and close the
+room; rooms close themselves after 30 minutes. Restaurants and the reel come in
+M2 and M3.
 
 ## Stack
 

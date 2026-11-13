@@ -266,3 +266,33 @@ describe('GET /api/rooms/:code/ws', () => {
     await expect(openSocket('ZZZZZZ')).rejects.toThrow(/upgrade failed: 404/);
   });
 });
+
+describe('WebSocket team session', () => {
+  it('is required: without it, nobody can even tell whether a room exists', async () => {
+    mockTurnstile();
+    const host = await createRoom();
+    for (const code of [host.code, 'ZZZZZZ']) {
+      await expect(openSocket(code, undefined, null)).rejects.toThrow(/upgrade failed: 401/);
+      await expect(openSocket(code, undefined, 'forged.token')).rejects.toThrow(
+        /upgrade failed: 401/,
+      );
+    }
+  });
+
+  it('selects the lunchrad subprotocol and never echoes the session token', async () => {
+    mockTurnstile();
+    const host = await createRoom();
+    const team = await teamToken();
+    const res = await call(`/api/rooms/${host.code}/ws`, {
+      headers: {
+        Upgrade: 'websocket',
+        Origin: 'https://lunchrad.test',
+        'Sec-WebSocket-Protocol': `lunchrad.v1, team.${team}`,
+      },
+    });
+    expect(res.status).toBe(101);
+    expect(res.headers.get('Sec-WebSocket-Protocol')).toBe('lunchrad.v1');
+    res.webSocket?.accept();
+    res.webSocket?.close(1000);
+  });
+});

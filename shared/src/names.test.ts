@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nameKey, normalizeName } from './names.ts';
+import { nameKey, normalizeName } from './names';
 
 describe('normalizeName', () => {
   it('accepts ordinary names and cleans whitespace', () => {

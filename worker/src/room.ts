@@ -10,6 +10,7 @@
 import {
   CLOSE_CODES,
   LIMITS,
+  WS_PROTOCOL,
   clientMessage,
   nameKey,
   normalizeName,
@@ -128,12 +129,19 @@ export class Room extends DurableObject<Env> {
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
       return new Response('Verwacht WebSocket', { status: 426 });
     }
+    if (this.ctx.getWebSockets().length >= LIMITS.maxSockets) {
+      return new Response('Te veel verbindingen', { status: 503 });
+    }
     const { 0: client, 1: server } = new WebSocketPair();
     this.ctx.acceptWebSocket(server);
     const attachment: SocketAttachment = { pid: null, openedAt: this.now() };
     server.serializeAttachment(attachment);
     await this.scheduleAlarm();
-    return new Response(null, { status: 101, webSocket: client });
+    return new Response(null, {
+      status: 101,
+      webSocket: client,
+      headers: { 'Sec-WebSocket-Protocol': WS_PROTOCOL },
+    });
   }
 
   override async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {

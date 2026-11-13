@@ -100,6 +100,14 @@ describe('message hygiene', () => {
     expect((await socket.closed).code).toBe(CLOSE_CODES.tooLarge);
   });
 
+  it('caps the number of open sockets per room', async () => {
+    const host = await createRoom();
+    const sockets = [];
+    for (let i = 0; i < LIMITS.maxSockets; i++) sockets.push(await openSocket(host.code));
+    await expect(openSocket(host.code)).rejects.toThrow(/upgrade failed: 503/);
+    for (const s of sockets) s.ws.close(1000);
+  });
+
   it('closes sockets that flood messages', async () => {
     const host = await createRoom();
     const socket = await connectAs(host);

@@ -91,10 +91,55 @@ before anything leaves your machine, install
    against the staging URL, and record the results in
    `docs/security-reviews/M0.md`. (These cannot run from the build sandbox.)
 
+## 4. Rooms (M1): Turnstile and secrets
+
+Without these, the app loads but every room action answers "Lunchrad is nog
+niet klaar voor gebruik". Nothing runs with an insecure default.
+
+### Turnstile widget (once)
+
+Cloudflare dashboard → **Turnstile** → **Add widget**:
+
+- Name: `Lunchrad`
+- Hostnames: `lunchrad-staging.tommasovangelderen.workers.dev` and
+  `lunchrad.tommasovangelderen.workers.dev`
+- Widget mode: **Managed**. Pre-clearance: **No**.
+- Copy the **site key** and the **secret key**.
+
+### Secrets (per Worker)
+
+Workers & Pages → `lunchrad-staging` → **Settings** → **Variables and Secrets**
+→ **Add**, type **Secret**, for each of these. Secrets survive deploys.
+
+| Name                   | Value                                                                                                |
+| ---------------------- | ---------------------------------------------------------------------------------------------------- |
+| `TEAM_KEY`             | What colleagues type once. At least 8 characters; better 4 random words (`kroket-fiets-wolk-zeven`). |
+| `SESSION_SECRET`       | 48 random bytes: run `openssl rand -base64 48`. Different per environment. Never share it.           |
+| `TURNSTILE_SECRET_KEY` | The Turnstile secret key                                                                             |
+| `TURNSTILE_SITE_KEY`   | The Turnstile site key (public, but stored here so nothing needs a code change)                      |
+
+Repeat for `lunchrad` (production) after its first release exists, with its own
+`SESSION_SECRET`. Command-line alternative: `npx wrangler secret put TEAM_KEY --env staging`
+in `worker/`.
+
+**Rotating the team key** (someone left the team, or it leaked): change `TEAM_KEY`.
+Every device then has to enter the new key once; open rooms keep working.
+
+### Check after deploying
+
+On staging, create a room and keep the browser console open (F12). There must
+be no red "Content Security Policy" or "Trusted Types" errors around the
+Turnstile check. This is the one part that could not be tested outside
+Cloudflare. Then run the ZAP baseline scan (part 3) against staging.
+
+### Local development
+
+Copy `worker/.dev.vars.example` to `worker/.dev.vars` (Cloudflare's public test
+keys, always-pass), then `npm run dev`.
+
 ## 4. Coming in later milestones
 
 | Milestone | What you will need to do                                                                                                                                                                                                |
 | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M1        | Create a **Turnstile** widget (Cloudflare dashboard → Turnstile) for both URLs; choose the team key and store it with `wrangler secret put` (per environment).                                                          |
 | M5        | Create a **D1** database per environment; set up **Cloudflare Zero Trust** (free plan), an Access application on `/admin` with an email one-time-PIN policy for your address only; add D1 permissions to the API token. |
 | M7        | Run the full ZAP scan and the restore test of D1; approve the final security assessment.                                                                                                                                |

@@ -1,4 +1,9 @@
 import type { Routes } from '@angular/router';
+import { Home } from './pages/home';
+import { Room } from './pages/room';
 
-// Room routes (/r/:code) arrive in M1. Unknown paths go back to the start.
-export const routes: Routes = [{ path: '**', redirectTo: '' }];
+export const routes: Routes = [
+  { path: '', component: Home, title: 'Lunchrad' },
+  { path: 'r/:code', component: Room, title: 'Kamer in Lunchrad' },
+  { path: '**', redirectTo: '' },
+];
