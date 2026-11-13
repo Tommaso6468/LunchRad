@@ -154,6 +154,7 @@ describe('removing restaurants', () => {
     expect(removed).toEqual({
       type: 'restaurant_removed',
       name: 'Wok To Go',
+      removedBy: expect.any(String),
       byHost: false,
       clearedBoosts: [tom.participantId],
     });

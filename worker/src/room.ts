@@ -419,6 +419,7 @@ export class Room extends DurableObject<Env> {
     this.broadcastEvent({
       type: 'restaurant_removed',
       name: restaurant.name,
+      removedBy: pid,
       byHost: byHost && restaurant.addedBy !== pid,
       clearedBoosts,
     });

@@ -170,6 +170,8 @@ export const roomEvent = z.discriminatedUnion('type', [
   z.strictObject({
     type: z.literal('restaurant_removed'),
     name: z.string(),
+    removedBy: participantId,
+    /** True when the host removed someone else's (or a preset) restaurant. */
     byHost: z.boolean(),
     /** Participants whose boost was on it and is now gone. */
     clearedBoosts: z.array(participantId),
