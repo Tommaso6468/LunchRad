@@ -4,13 +4,15 @@ Kies samen waar jullie gaan lunchen. A realtime lunch wheel for a small team:
 join a room with a code, add and boost restaurants, let the host spin the
 arcade reel, and vote on a respin.
 
-Status: **M3 — The arcade reel**. Teams enter a shared team key once,
+Status: **M4 — Respin vote**. Teams enter a shared team key once,
 create rooms (with a bot check) or join with a code, QR code or link, and see
 each other live. The host can hand over the role, remove people and close the
 room; rooms close themselves after 30 minutes. Everyone can add restaurants
 (name, type of food, Google Maps link) and boost one of them for an extra slice
 on the wheel. The host pulls the lever; the server picks the winner and every
-phone runs the same reel animation to it. The respin vote comes in M4.
+phone runs the same reel animation to it. Then everyone present votes for 30
+seconds: more than half yes removes that restaurant and spins again (at most
+3 times). After the final result the room closes in 5 minutes.
 
 ## Stack
 
