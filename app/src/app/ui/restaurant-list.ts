@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { LIMITS, type RoomState } from '@lunchrad/shared';
 import { nl } from '../i18n/nl';
 
@@ -23,7 +23,7 @@ interface Row {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="panel" aria-labelledby="restaurants-title">
-      <h2 id="restaurants-title">{{ t.title(rows().length) }}</h2>
+      <h2 id="restaurants-title" class="visually-hidden">{{ t.title(rows().length) }}</h2>
       <p class="hint">{{ locked() ? t.locked : t.howBoostWorks }}</p>
 
       @if (rows().length === 0) {
@@ -31,21 +31,28 @@ interface Row {
       } @else {
         <ul class="restaurants">
           @for (r of rows(); track r.id) {
-            <li [class.mine]="r.boostedByYou">
-              <div class="what">
-                <span class="r-name">{{ r.name }}</span>
-                @if (r.categories.length) {
-                  <ul class="r-categories" [attr.aria-label]="t.categoriesLabel">
-                    @for (c of r.categories; track c) {
-                      <li>{{ c }}</li>
-                    }
-                  </ul>
-                }
-                @if (r.boosters.length) {
-                  <span class="r-boosters">{{ t.boostedBy(r.boosters) }}</span>
-                }
-              </div>
-              <div class="tools">
+            <li [class.mine]="r.boostedByYou" [class.open]="expanded() === r.id">
+              <div class="line">
+                <button
+                  type="button"
+                  class="what"
+                  [attr.aria-expanded]="expanded() === r.id"
+                  [attr.aria-controls]="'details-' + r.id"
+                  [attr.aria-label]="t.details(r.name)"
+                  (click)="toggle(r.id)"
+                >
+                  <span class="r-name">{{ r.name }}</span>
+                  @if (r.categories.length) {
+                    <span class="r-categories">
+                      @for (c of r.categories; track c) {
+                        <span class="tag">{{ c }}</span>
+                      }
+                    </span>
+                  }
+                </button>
+                <span class="odds" [attr.aria-label]="t.oddsLabel(r.slices, total())" role="img">
+                  {{ t.odds(r.slices, total()) }}
+                </span>
                 <button
                   type="button"
                   class="boost"
@@ -56,38 +63,38 @@ interface Row {
                 >
                   {{ r.boostedByYou ? t.boosted : t.boost }}
                 </button>
-                @if (r.mapsUrl) {
-                  <a
-                    class="icon-button"
-                    [href]="r.mapsUrl"
-                    target="_blank"
-                    rel="noopener noreferrer external"
-                    [attr.aria-label]="t.maps(r.name)"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"
-                      />
-                    </svg>
-                  </a>
-                }
-
-                @if (r.canRemove && !locked()) {
-                  <button
-                    type="button"
-                    class="icon-button remove"
-                    [attr.aria-label]="t.remove(r.name)"
-                    (click)="remove.emit({ id: r.id, name: r.name })"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M6 6l12 12M18 6L6 18" />
-                    </svg>
-                  </button>
-                }
-                <span class="odds" [attr.aria-label]="t.oddsLabel(r.slices, total())" role="img">
-                  {{ t.odds(r.slices, total()) }}
-                </span>
               </div>
+
+              @if (expanded() === r.id) {
+                <div class="details" [id]="'details-' + r.id">
+                  <p class="r-boosters">
+                    {{ r.boosters.length ? t.boostedBy(r.boosters) : t.noBoosts }}
+                  </p>
+                  <div class="row">
+                    @if (r.mapsUrl) {
+                      <a
+                        class="button secondary small-button"
+                        [href]="r.mapsUrl"
+                        target="_blank"
+                        rel="noopener noreferrer external"
+                        [attr.aria-label]="t.maps(r.name)"
+                      >
+                        {{ t.mapsShort }}
+                      </a>
+                    }
+                    @if (r.canRemove && !locked()) {
+                      <button
+                        type="button"
+                        class="small danger remove"
+                        [attr.aria-label]="t.remove(r.name)"
+                        (click)="remove.emit({ id: r.id, name: r.name })"
+                      >
+                        {{ t.removeShort }}
+                      </button>
+                    }
+                  </div>
+                </div>
+              }
             </li>
           }
         </ul>
@@ -111,60 +118,70 @@ interface Row {
       padding: 0;
     }
     .restaurants > li {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      padding: 0.75rem 0;
       border-top: 1px solid var(--line);
     }
     .restaurants > li:first-child {
       border-top: 0;
     }
+    .line {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      min-height: 4rem;
+    }
     .what {
+      flex: 1;
+      min-width: 0;
       display: flex;
       flex-direction: column;
-      min-width: 0;
+      align-items: flex-start;
+      gap: 0.15rem;
+      min-height: 3.5rem;
+      padding: 0.35rem 0;
+      border: 0;
+      border-radius: 0.5rem;
+      background: none;
+      box-shadow: none;
+      color: var(--ink);
+      text-align: left;
+      font-weight: 400;
+    }
+    .what:active:not(:disabled) {
+      transform: none;
+      box-shadow: none;
     }
     .r-name {
+      max-width: 100%;
       font-weight: 700;
-      font-size: 1.1rem;
-      overflow-wrap: anywhere;
+      font-size: 1.05rem;
+      line-height: 1.25;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .r-categories {
       display: flex;
-      flex-wrap: wrap;
       gap: 0.3rem;
-      list-style: none;
-      margin: 0.2rem 0 0.1rem;
-      padding: 0;
+      max-width: 100%;
+      overflow: hidden;
+      white-space: nowrap;
     }
-    .r-categories li {
-      padding: 0 0.5rem;
+    .tag {
+      padding: 0 0.45rem;
       border: 1.5px solid var(--line);
       border-radius: 999px;
       color: var(--muted);
-      font-size: 0.85rem;
-    }
-    .r-boosters {
-      font-size: 0.9rem;
-    }
-    .r-boosters {
-      color: var(--ink);
-    }
-    .tools {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
+      font-size: 0.8rem;
     }
     .odds {
-      margin-left: auto;
       font-family: var(--font-code);
       font-weight: 600;
-      font-size: 0.95rem;
+      font-size: 0.9rem;
     }
     .boost {
       min-height: 2.75rem;
-      padding: 0.35rem 0.9rem;
+      min-width: 5.6rem;
+      padding: 0.3rem 0.7rem;
       background: var(--surface);
       color: var(--ink);
     }
@@ -172,34 +189,21 @@ interface Row {
       background: var(--brass);
       color: var(--ink-on-brass);
     }
-    .icon-button {
-      display: inline-grid;
-      place-items: center;
-      width: 2.75rem;
-      height: 2.75rem;
-      padding: 0;
-      border: 2px solid var(--ink);
-      border-radius: 0.75rem;
-      background: var(--surface);
-      color: var(--ink);
+    .details {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      padding: 0 0 0.85rem;
+    }
+    .r-boosters {
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .small-button {
+      min-height: 2.5rem;
+      padding: 0.3rem 0.85rem;
+      font-size: 0.9rem;
       box-shadow: 0 3px 0 var(--ink);
-    }
-    .icon-button svg {
-      width: 1.3rem;
-      height: 1.3rem;
-      fill: currentColor;
-      stroke: currentColor;
-      stroke-width: 0;
-    }
-    .remove svg {
-      fill: none;
-      stroke-width: 2.5;
-      stroke-linecap: round;
-    }
-    .remove {
-      color: var(--danger);
-      border-color: var(--danger);
-      box-shadow: 0 3px 0 var(--danger);
     }
     .empty {
       padding: 1rem 0;
@@ -224,6 +228,12 @@ export class RestaurantList {
   readonly addRequested = output();
 
   protected readonly t = nl.restaurants;
+  /** The one restaurant whose details (Maps, boosters, remove) are open. */
+  protected readonly expanded = signal<string | null>(null);
+
+  protected toggle(id: string): void {
+    this.expanded.update((current) => (current === id ? null : id));
+  }
 
   protected readonly rows = computed<Row[]>(() => {
     const state = this.state();
