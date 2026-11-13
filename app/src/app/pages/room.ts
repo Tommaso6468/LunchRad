@@ -61,28 +61,28 @@ import { TeamKeyForm } from './team-key-form';
         </section>
       } @else {
         <header class="room-head">
-          <app-room-code [code]="validCode" [label]="t.room.codeLabel" />
-          <div class="row">
-            <button type="button" class="secondary" (click)="share(validCode)">
+          <app-room-code [code]="validCode" [label]="t.room.codeLabel" size="small" />
+          <div class="head-actions">
+            <button type="button" class="secondary small" (click)="share(validCode)">
               {{ t.room.share }}
             </button>
             <button
               type="button"
-              class="secondary"
+              class="secondary small"
               [attr.aria-expanded]="showQr()"
               aria-controls="room-qr"
               (click)="showQr.set(!showQr())"
             >
               {{ showQr() ? t.room.hideQr : t.room.showQr }}
             </button>
+            @if (minutesLeft(); as minutes) {
+              <p class="muted closes">{{ t.room.closesIn(minutes) }}</p>
+            }
           </div>
           @if (showQr()) {
             <div id="room-qr" class="qr">
               <app-qr-code [value]="shareUrl(validCode)" [label]="t.room.qrAlt(validCode)" />
             </div>
-          }
-          @if (minutesLeft(); as minutes) {
-            <p class="muted">{{ t.room.closesIn(minutes) }}</p>
           }
         </header>
 
@@ -108,24 +108,65 @@ import { TeamKeyForm } from './team-key-form';
               }
             </section>
           }
-          <app-restaurant-list
-            [state]="state"
-            [you]="conn.you()"
-            [isHost]="conn.isHost()"
-            [locked]="state.phase !== 'lobby'"
-            (toggleBoost)="toggleBoost($event)"
-            (remove)="removeRestaurant($event)"
-            (addRequested)="addDialog.open()"
-          />
+          <div class="tabs" role="tablist" [attr.aria-label]="t.room.tabsLabel">
+            <button
+              type="button"
+              role="tab"
+              id="tab-restaurants"
+              aria-controls="panel-restaurants"
+              [attr.aria-selected]="tab() === 'restaurants'"
+              [attr.tabindex]="tab() === 'restaurants' ? 0 : -1"
+              (click)="tab.set('restaurants')"
+              (keydown)="tabKeys($event)"
+            >
+              {{ t.restaurants.tab(state.restaurants.length) }}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="tab-people"
+              aria-controls="panel-people"
+              [attr.aria-selected]="tab() === 'people'"
+              [attr.tabindex]="tab() === 'people' ? 0 : -1"
+              (click)="tab.set('people')"
+              (keydown)="tabKeys($event)"
+            >
+              {{ t.room.peopleTab(state.participants.length) }}
+            </button>
+          </div>
+
+          <div
+            id="panel-restaurants"
+            role="tabpanel"
+            aria-labelledby="tab-restaurants"
+            [hidden]="tab() !== 'restaurants'"
+          >
+            <app-restaurant-list
+              [state]="state"
+              [you]="conn.you()"
+              [isHost]="conn.isHost()"
+              [locked]="state.phase !== 'lobby'"
+              (toggleBoost)="toggleBoost($event)"
+              (remove)="removeRestaurant($event)"
+              (addRequested)="addDialog.open()"
+            />
+          </div>
           <app-add-restaurant-dialog #addDialog (added)="addRestaurant($event)" />
 
-          <app-participant-list
-            [state]="state"
-            [you]="conn.you()"
-            [isHost]="conn.isHost()"
-            (makeHost)="makeHost($event)"
-            (kick)="kick($event.id, $event.name)"
-          />
+          <div
+            id="panel-people"
+            role="tabpanel"
+            aria-labelledby="tab-people"
+            [hidden]="tab() !== 'people'"
+          >
+            <app-participant-list
+              [state]="state"
+              [you]="conn.you()"
+              [isHost]="conn.isHost()"
+              (makeHost)="makeHost($event)"
+              (kick)="kick($event.id, $event.name)"
+            />
+          </div>
 
           <app-spin-overlay
             #spinOverlay
@@ -190,6 +231,16 @@ export class Room {
   protected readonly busy = signal(false);
   protected readonly joinError = signal('');
   protected readonly showQr = signal(false);
+  protected readonly tab = signal<'restaurants' | 'people'>('restaurants');
+
+  /** Arrow keys move between the two tabs (WAI-ARIA tabs pattern). */
+  protected tabKeys(event: KeyboardEvent): void {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    const next = this.tab() === 'restaurants' ? 'people' : 'restaurants';
+    this.tab.set(next);
+    document.getElementById(next === 'people' ? 'tab-people' : 'tab-restaurants')?.focus();
+  }
   private readonly now = signal(Date.now());
   private warnedClosingSoon = false;
 
