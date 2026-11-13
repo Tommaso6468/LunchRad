@@ -27,6 +27,7 @@ import { AddRestaurantDialog, type NewRestaurant } from '../ui/add-restaurant-di
 import { ParticipantList } from '../ui/participant-list';
 import { QrCode } from '../ui/qr-code';
 import { RestaurantList } from '../ui/restaurant-list';
+import { SpinOverlay } from '../ui/spin-overlay';
 import { RoomCode } from '../ui/room-code';
 import { TeamKeyForm } from './team-key-form';
 
@@ -41,6 +42,7 @@ import { TeamKeyForm } from './team-key-form';
     RestaurantList,
     AddRestaurantDialog,
     ParticipantList,
+    SpinOverlay,
   ],
   template: `
     @let validCode = roomCode();
@@ -91,10 +93,26 @@ import { TeamKeyForm } from './team-key-form';
         }
 
         @if (conn.state(); as state) {
+          @if (resultRestaurant(); as winner) {
+            <section class="result-card" aria-labelledby="room-result-title">
+              <p id="room-result-title" class="muted">{{ t.reel.resultTitle }}</p>
+              <p class="winner">{{ winner.name }}</p>
+              @if (winner.mapsUrl) {
+                <a
+                  class="button primary"
+                  [href]="winner.mapsUrl"
+                  target="_blank"
+                  rel="noopener noreferrer external"
+                  >{{ t.reel.maps }}</a
+                >
+              }
+            </section>
+          }
           <app-restaurant-list
             [state]="state"
             [you]="conn.you()"
             [isHost]="conn.isHost()"
+            [locked]="state.phase !== 'lobby'"
             (toggleBoost)="toggleBoost($event)"
             (remove)="removeRestaurant($event)"
             (addRequested)="addDialog.open()"
@@ -108,6 +126,19 @@ import { TeamKeyForm } from './team-key-form';
             (makeHost)="makeHost($event)"
             (kick)="kick($event.id, $event.name)"
           />
+
+          <app-spin-overlay
+            #spinOverlay
+            [state]="state"
+            [isHost]="conn.isHost()"
+            (pull)="startSpin()"
+          />
+          <div class="spin-bar">
+            <p>{{ spinBarText(state.phase, conn.isHost()) }}</p>
+            <button type="button" class="primary" (click)="spinOverlay.open()">
+              {{ state.phase === 'result' ? t.reel.openResult : t.reel.open }}
+            </button>
+          </div>
 
           <footer class="room-foot">
             @if (conn.isHost()) {
@@ -235,6 +266,23 @@ export class Room {
     } finally {
       this.busy.set(false);
     }
+  }
+
+  /** The winning restaurant once the reel has finished, for the banner above the list. */
+  protected readonly resultRestaurant = computed(() => {
+    const state = this.connection()?.state();
+    if (!state || state.phase !== 'result' || !state.spin) return null;
+    return state.restaurants.find((r) => r.id === state.spin?.winnerId) ?? null;
+  });
+
+  protected spinBarText(phase: string, isHost: boolean): string {
+    if (phase === 'spinning') return nl.reel.spinning;
+    if (phase === 'result') return '';
+    return isHost ? nl.reel.hostHint : nl.reel.waiting;
+  }
+
+  protected startSpin(): void {
+    this.connection()?.send({ type: 'start_spin' });
   }
 
   protected toggleBoost(restaurantId: string | null): void {

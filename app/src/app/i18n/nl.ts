@@ -83,6 +83,7 @@ export const nl = {
     remove: (name: string) => `${name} verwijderen`,
     confirmRemove: (name: string) => `${name} van het rad halen?`,
     howBoostWorks: 'Een boost geeft een restaurant een extra vak op het rad. Je hebt er één.',
+    locked: 'Het rad is gedraaid: de lijst en de boosts zitten op slot.',
     dialog: {
       title: 'Restaurant toevoegen',
       name: 'Naam',
@@ -113,11 +114,28 @@ export const nl = {
     ],
   },
 
+  reel: {
+    open: 'Naar het rad',
+    openResult: 'Uitslag bekijken',
+    back: 'Terug naar de lijst',
+    title: 'Het rad',
+    lever: 'Trek aan de hendel om te draaien',
+    onlyHost: 'Alleen de host kan aan de hendel trekken.',
+    needTwo: 'Er moeten minstens 2 restaurants op het rad staan.',
+    waiting: 'Wacht tot de host aan de hendel trekt.',
+    spinning: 'Het rad draait…',
+    landed: (name: string) => `Het rad koos ${name}`,
+    resultTitle: 'We gaan naar',
+    maps: 'Route in Google Maps',
+    hostHint: 'Trek aan de hendel. Boosts en de lijst gaan dan op slot.',
+  },
+
   toasts: {
     youAreHost: 'Jij bent nu de host',
     newHost: (name: string) => `${name} is nu de host`,
     kicked: (name: string) => `${name} is uit de kamer verwijderd`,
     closingSoon: 'De kamer sluit over 5 minuten',
+    spinStarted: 'Het rad draait!',
     boosted: (who: string, where: string) => `${who} boost ${where}`,
     boostMoved: (who: string, where: string) => `${who} boost nu ${where}`,
     manyBoosts: (count: number) => `${count} nieuwe boosts`,
@@ -172,5 +190,7 @@ export const nl = {
     too_many_restaurants: 'Het rad is vol: maximaal 30 restaurants.',
     unknown_restaurant: 'Dat restaurant staat niet meer op het rad.',
     not_allowed: 'Alleen de host of wie het heeft toegevoegd kan dit weghalen.',
+    locked: 'Het rad draait of heeft gekozen: de lijst en boosts zitten op slot.',
+    not_enough_restaurants: 'Er moeten minstens 2 restaurants op het rad staan.',
   } satisfies Record<SocketError, string>,
 } as const;

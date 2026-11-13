@@ -24,7 +24,7 @@ interface Row {
   template: `
     <section class="panel" aria-labelledby="restaurants-title">
       <h2 id="restaurants-title">{{ t.title(rows().length) }}</h2>
-      <p class="hint">{{ t.howBoostWorks }}</p>
+      <p class="hint">{{ locked() ? t.locked : t.howBoostWorks }}</p>
 
       @if (rows().length === 0) {
         <p class="empty">{{ t.empty }}</p>
@@ -49,6 +49,7 @@ interface Row {
                 <button
                   type="button"
                   class="boost"
+                  [disabled]="locked()"
                   [attr.aria-pressed]="r.boostedByYou"
                   [attr.aria-label]="r.boostedByYou ? t.unboostLabel(r.name) : t.boostLabel(r.name)"
                   (click)="toggleBoost.emit(r.boostedByYou ? null : r.id)"
@@ -71,7 +72,7 @@ interface Row {
                   </a>
                 }
 
-                @if (r.canRemove) {
+                @if (r.canRemove && !locked()) {
                   <button
                     type="button"
                     class="icon-button remove"
@@ -92,7 +93,9 @@ interface Row {
         </ul>
       }
 
-      @if (full()) {
+      @if (locked()) {
+        <!-- Nothing to add while the reel decides. -->
+      } @else if (full()) {
         <p class="hint">{{ t.full }}</p>
       } @else {
         <button type="button" class="secondary add" (click)="addRequested.emit()">
@@ -212,6 +215,8 @@ export class RestaurantList {
   readonly state = input.required<RoomState>();
   readonly you = input.required<string | null>();
   readonly isHost = input.required<boolean>();
+  /** True once the spin has started: no boosts, additions or removals. */
+  readonly locked = input(false);
 
   /** Restaurant id to boost, or null to remove your boost. */
   readonly toggleBoost = output<string | null>();

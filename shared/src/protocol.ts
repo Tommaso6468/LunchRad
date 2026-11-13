@@ -14,6 +14,10 @@ export const LIMITS = {
   maxParticipants: 20,
   /** Maximum restaurants on one wheel, so slices stay readable. */
   maxRestaurants: 30,
+  /** A spin needs at least this many restaurants. */
+  minRestaurantsToSpin: 2,
+  /** How long the reel animation runs, the same on every phone. */
+  spinDurationMs: 5000,
   /** Maximum open sockets per room (a few tabs or devices per person). */
   maxSockets: 60,
   /** Hard cap on a room's lifetime. */
@@ -105,6 +109,8 @@ export const clientMessage = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('remove_restaurant'), restaurantId }),
   z.strictObject({ type: z.literal('boost'), restaurantId }),
   z.strictObject({ type: z.literal('unboost') }),
+  // No parameters on purpose: the client cannot influence the result.
+  z.strictObject({ type: z.literal('start_spin') }),
 ]);
 export type ClientMessage = z.infer<typeof clientMessage>;
 
@@ -139,7 +145,26 @@ export const roomState = z.strictObject({
   expiresAt: z.number(),
   participants: z.array(participantView).check(z.maxLength(LIMITS.maxParticipants)),
   restaurants: z.array(restaurantView).check(z.maxLength(LIMITS.maxRestaurants)),
+  /** lobby: building the list; spinning: reel running; result: winner known. */
+  phase: z.enum(['lobby', 'spinning', 'result']),
+  spin: z.nullable(
+    z.strictObject({
+      /** Increases with every spin, so clients notice a new one. */
+      number: z.number(),
+      /** Restaurant ids in reel order; boosted ones appear more than once. */
+      reel: z
+        .array(restaurantId)
+        .check(z.maxLength(LIMITS.maxRestaurants + LIMITS.maxParticipants)),
+      winnerIndex: z.number(),
+      winnerId: restaurantId,
+      durationMs: z.number(),
+      /** How far into the animation the server was when it sent this state. */
+      elapsedMs: z.number(),
+    }),
+  ),
 });
+export type SpinView = NonNullable<RoomState['spin']>;
+export type RoomPhase = RoomState['phase'];
 export type RoomState = z.infer<typeof roomState>;
 
 export const CLOSE_REASONS = ['ended', 'expired', 'empty'] as const;
@@ -159,6 +184,8 @@ export const SOCKET_ERRORS = [
   'too_many_restaurants',
   'unknown_restaurant',
   'not_allowed',
+  'locked',
+  'not_enough_restaurants',
 ] as const;
 export type SocketError = (typeof SOCKET_ERRORS)[number];
 

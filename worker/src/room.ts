@@ -5,8 +5,11 @@
  * roles are checked here and never trusted from the client.
  *
  * WebSockets use the Hibernation API, so an idle room costs nothing. All
- * timers (30-minute cap, empty room, host away, hello timeout) share the one
- * Durable Object alarm, recomputed after every change.
+ * timers (30-minute cap, empty room, host away, hello timeout, end of the
+ * spin) share the one Durable Object alarm, recomputed after every change.
+ *
+ * The spin is decided here, once, with the platform CSPRNG (see spin.ts).
+ * Clients only receive the reel and the winning row and animate towards it.
  */
 import {
   CLOSE_CODES,
@@ -29,6 +32,7 @@ import {
 import { DurableObject } from 'cloudflare:workers';
 import { randomId, randomToken, sha256Base64url } from './crypto.ts';
 import type { Env } from './env.ts';
+import { buildReel, randomIndex } from './spin.ts';
 import { SEED_RESTAURANTS } from './seed-preset.ts';
 
 interface RoomMeta {
@@ -40,6 +44,17 @@ interface RoomMeta {
   emptySince: number | null;
   /** Set while the host is disconnected. */
   hostAwaySince: number | null;
+  phase: 'lobby' | 'spinning' | 'result';
+  spin: Spin | null;
+}
+
+interface Spin {
+  number: number;
+  reel: string[];
+  winnerIndex: number;
+  winnerId: string;
+  startedAt: number;
+  durationMs: number;
 }
 
 interface Participant {
@@ -92,7 +107,9 @@ export class Room extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     void ctx.blockConcurrencyWhile(async () => {
-      this.meta = (await ctx.storage.get<RoomMeta>('meta')) ?? null;
+      const meta = await ctx.storage.get<RoomMeta>('meta');
+      // Rooms created before M3 have no phase yet.
+      this.meta = meta ? { ...meta, phase: meta.phase ?? 'lobby', spin: meta.spin ?? null } : null;
       const stored = await ctx.storage.list<Participant>({ prefix: 'p:' });
       for (const p of stored.values()) {
         this.participants.set(p.id, p);
@@ -124,6 +141,8 @@ export class Room extends DurableObject<Env> {
       // Nobody is connected yet; if the host never connects, the room closes.
       emptySince: now,
       hostAwaySince: null,
+      phase: 'lobby',
+      spin: null,
     };
     await this.persistMeta();
     await this.seedRestaurants(now);
@@ -229,16 +248,23 @@ export class Room extends DurableObject<Env> {
         }
         await this.closeRoom('ended');
         return;
+      case 'start_spin':
+        await this.handleStartSpin(ws, pid);
+        return;
       case 'add_restaurant':
+        if (this.meta.phase !== 'lobby') return this.reject(ws, 'locked');
         await this.handleAddRestaurant(ws, pid, parsed);
         return;
       case 'remove_restaurant':
+        if (this.meta.phase !== 'lobby') return this.reject(ws, 'locked');
         await this.handleRemoveRestaurant(ws, pid, parsed.restaurantId);
         return;
       case 'boost':
+        if (this.meta.phase !== 'lobby') return this.reject(ws, 'locked');
         await this.handleBoost(ws, pid, parsed.restaurantId);
         return;
       case 'unboost':
+        if (this.meta.phase !== 'lobby') return this.reject(ws, 'locked');
         await this.handleUnboost(pid);
         return;
     }
@@ -268,6 +294,13 @@ export class Room extends DurableObject<Env> {
       return;
     }
     await this.maybeHandOffHost(now);
+
+    const spin = meta.spin;
+    if (meta.phase === 'spinning' && spin && now >= spin.startedAt + spin.durationMs) {
+      meta.phase = 'result';
+      await this.persistMeta();
+      this.broadcastState();
+    }
 
     for (const ws of this.ctx.getWebSockets()) {
       const att = this.attachment(ws);
@@ -445,6 +478,42 @@ export class Room extends DurableObject<Env> {
     this.broadcastState();
   }
 
+  /**
+   * Host pulls the lever. The list and boosts lock, the server picks the
+   * winning row, and everyone receives the same reel and result.
+   */
+  private async handleStartSpin(ws: WebSocket, pid: string): Promise<void> {
+    const meta = this.meta;
+    if (!meta) return;
+    if (!this.isHost(pid)) return this.reject(ws, 'not_host');
+    if (meta.phase !== 'lobby') return this.reject(ws, 'locked');
+    if (this.restaurants.size < LIMITS.minRestaurantsToSpin) {
+      return this.reject(ws, 'not_enough_restaurants');
+    }
+    const boosts = new Map<string, number>();
+    for (const p of this.participants.values()) {
+      if (p.boost && this.restaurants.has(p.boost)) {
+        boosts.set(p.boost, (boosts.get(p.boost) ?? 0) + 1);
+      }
+    }
+    const reel = buildReel(
+      [...this.restaurants.keys()].map((id) => ({ id, slices: 1 + (boosts.get(id) ?? 0) })),
+    );
+    const winnerIndex = randomIndex(reel.length);
+    meta.phase = 'spinning';
+    meta.spin = {
+      number: (meta.spin?.number ?? 0) + 1,
+      reel,
+      winnerIndex,
+      winnerId: reel[winnerIndex] as string,
+      startedAt: this.now(),
+      durationMs: LIMITS.spinDurationMs,
+    };
+    await this.persistMeta();
+    this.broadcastState();
+    await this.scheduleAlarm();
+  }
+
   private reject(ws: WebSocket, error: SocketError): void {
     this.send(ws, { type: 'error', error });
   }
@@ -544,6 +613,9 @@ export class Room extends DurableObject<Env> {
     if (!meta) return;
     const now = this.now();
     const deadlines = [meta.expiresAt];
+    if (meta.phase === 'spinning' && meta.spin) {
+      deadlines.push(meta.spin.startedAt + meta.spin.durationMs);
+    }
     if (meta.emptySince !== null) deadlines.push(meta.emptySince + LIMITS.emptyRoomMs);
     if (meta.hostAwaySince !== null && meta.hostAwaySince + LIMITS.hostAwayMs > now) {
       deadlines.push(meta.hostAwaySince + LIMITS.hostAwayMs);
@@ -641,6 +713,20 @@ export class Room extends DurableObject<Env> {
           mapsUrl: r.mapsUrl,
           addedBy: r.addedBy,
         })),
+      phase: meta.phase,
+      spin: meta.spin
+        ? {
+            number: meta.spin.number,
+            reel: meta.spin.reel,
+            winnerIndex: meta.spin.winnerIndex,
+            winnerId: meta.spin.winnerId,
+            durationMs: meta.spin.durationMs,
+            elapsedMs: Math.min(
+              meta.spin.durationMs,
+              Math.max(0, this.now() - meta.spin.startedAt),
+            ),
+          }
+        : null,
     };
   }
 
