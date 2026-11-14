@@ -25,6 +25,8 @@
   --focus: #1060d0;
   --drum-edge: #b9d3c6;
   --ticket-glow: rgb(215 38 61 / 0.1);
+  /* Red used as text on surfaces (winner name). */
+  --ticket-text: #d7263d;
 
   --font-display: 'Bagel Fat One', system-ui, sans-serif;
   --font-body: 'Atkinson Hyperlegible Next', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -44,7 +46,8 @@
     --ink: #e9f5ef;
     --muted: #a9c6bb;
     --line: #2d5a4e;
-    --ticket: #e23b51;
+    --ticket: #d7263d;
+    --ticket-text: #ff9aa6;
     --on-ticket: #ffffff;
     --ticket-digit: #ffe08a;
     --brass: #f2c14e;
@@ -98,7 +101,7 @@ h2 {
   font-weight: 400;
   font-size: clamp(3rem, 15vw, 4.25rem);
   letter-spacing: -0.01em;
-  color: var(--ticket);
+  color: var(--ticket-text);
   text-shadow: 0.06em 0.06em 0 var(--ink);
 }
 
@@ -492,7 +495,7 @@ button.small.danger {
   font-weight: 400;
   font-size: clamp(2rem, 10vw, 2.6rem);
   line-height: 1.05;
-  color: var(--ticket);
+  color: var(--ticket-text);
   overflow-wrap: anywhere;
 }
 
@@ -652,4 +655,45 @@ app-admin-audit {
     flex-direction: row;
     align-items: center;
   }
+}
+
+/* ---------- Celebration and app chrome ---------- */
+
+.confetti {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 50;
+  pointer-events: none;
+}
+
+/* Toggle buttons: filled when on. */
+button.small[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--surface);
+}
+
+app-status:has(.app-status:empty) {
+  display: none;
+}
+
+.status-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--ink);
+  color: var(--bg);
+  border-radius: 1rem;
+  font-weight: 700;
+}
+
+.status-card .small-cta {
+  min-height: 2.5rem;
+  padding: 0.3rem 0.9rem;
+  border-color: var(--bg);
+  box-shadow: 0 3px 0 var(--bg);
 }

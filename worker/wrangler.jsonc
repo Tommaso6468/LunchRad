@@ -18,7 +18,7 @@
     // Worker, hence "/" and "/index.html". Hashed JS/CSS files are served
     // straight from the asset layer (headers from public/_headers).
     "not_found_handling": "none",
-    "run_worker_first": ["/", "/index.html", "/api/*", "/admin/api/*"],
+    "run_worker_first": ["/", "/index.html", "/sw.js", "/api/*", "/admin/api/*"],
   },
   "observability": {
     "enabled": true,

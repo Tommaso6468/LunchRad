@@ -31,6 +31,14 @@ export const API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'no
  */
 export const TURNSTILE_ORIGIN = 'https://challenges.cloudflare.com';
 export const TURNSTILE_TT_POLICY = 'lunchrad#turnstile';
+/** Trusted Types policy that only allows registering /sw.js. */
+export const SW_TT_POLICY = 'lunchrad#sw';
+
+/**
+ * The service worker script's own CSP: it may only talk to this origin.
+ * (A worker's CSP comes from its script response, not from the page.)
+ */
+export const SW_CSP = "default-src 'none'; connect-src 'self'";
 
 export function shellCsp(nonce: string, host: string): string {
   return [
@@ -49,7 +57,7 @@ export function shellCsp(nonce: string, host: string): string {
     "frame-ancestors 'none'",
     "object-src 'none'",
     "require-trusted-types-for 'script'",
-    `trusted-types angular angular#bundler ${TURNSTILE_TT_POLICY}`,
+    `trusted-types angular angular#bundler ${TURNSTILE_TT_POLICY} ${SW_TT_POLICY}`,
     'upgrade-insecure-requests',
   ].join('; ');
 }

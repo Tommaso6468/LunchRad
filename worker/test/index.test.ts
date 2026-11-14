@@ -58,7 +58,10 @@ describe('app shell', () => {
       'angular',
       'angular#bundler',
       'lunchrad#turnstile',
+      'lunchrad#sw',
     ]);
+    expect(directives['manifest-src']).toEqual(["'self'"]);
+    expect(directives['worker-src']).toEqual(["'self'"]);
   });
 
   it('is never cacheable', async () => {
@@ -116,4 +119,34 @@ describe('security headers', () => {
       expect(res.headers.get('Content-Security-Policy')).toBeTruthy();
     },
   );
+});
+
+describe('service worker script', () => {
+  const swEnv = (status = 200) =>
+    makeEnv({
+      ASSETS: {
+        fetch: async () =>
+          new Response(status === 200 ? 'self.addEventListener("fetch", () => {});' : 'missing', {
+            status,
+          }),
+        connect: () => {
+          throw new Error('not used');
+        },
+      } as unknown as Fetcher,
+    });
+
+  it('is never HTTP-cached and may only talk to this origin', async () => {
+    const res = await call('/sw.js', {}, swEnv());
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toContain('text/javascript');
+    expect(res.headers.get('Cache-Control')).toBe('no-cache');
+    expect(res.headers.get('Content-Security-Policy')).toBe(
+      "default-src 'none'; connect-src 'self'",
+    );
+    expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
+  });
+
+  it('answers 404 when the build has none', async () => {
+    expect((await call('/sw.js', {}, swEnv(404))).status).toBe(404);
+  });
 });

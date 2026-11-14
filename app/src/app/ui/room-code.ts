@@ -12,7 +12,8 @@ import { classifyRoomCode } from '@lunchrad/shared';
   template: `
     <div class="ticket" [class.small]="size() === 'small'">
       <span class="label">{{ label() }}</span>
-      <span class="code" [attr.aria-label]="spoken()">
+      <span class="code">
+        <span class="visually-hidden">{{ spoken() }}</span>
         @for (c of chars(); track $index) {
           <span [class]="c.kind" aria-hidden="true">{{ c.char }}</span>
         }
@@ -47,7 +48,6 @@ import { classifyRoomCode } from '@lunchrad/shared';
     }
     .label {
       font-size: 0.8rem;
-      opacity: 0.85;
     }
     .code {
       font-family: var(--font-code);
