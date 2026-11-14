@@ -19,7 +19,7 @@ export const LIMITS = {
   /** How long the reel animation runs, the same on every phone. */
   spinDurationMs: 5000,
   /** How long the respin vote stays open. */
-  voteDurationMs: 30_000,
+  voteDurationMs: 60_000,
   /** At most this many respins per room. */
   maxRespins: 3,
   /** The room closes this long after the final result. */
@@ -102,6 +102,8 @@ export const apiErrorBody = z.strictObject({ error: z.enum(API_ERRORS) });
 
 export const clientMessage = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('hello'), token }),
+  /** A big screen authenticates with its display token instead of a participant token. */
+  z.strictObject({ type: z.literal('display_hello'), token }),
   z.strictObject({ type: z.literal('ping') }),
   z.strictObject({ type: z.literal('kick'), participantId }),
   z.strictObject({ type: z.literal('transfer_host'), participantId }),
@@ -124,6 +126,8 @@ export const clientMessage = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('start_spin') }),
   z.strictObject({ type: z.literal('vote'), choice: z.enum(['yes', 'no']) }),
   z.strictObject({ type: z.literal('set_new_place'), on: z.boolean() }),
+  /** Host asks for a big-screen link; any earlier one stops working. */
+  z.strictObject({ type: z.literal('create_display') }),
 ]);
 export type ClientMessage = z.infer<typeof clientMessage>;
 
@@ -275,6 +279,10 @@ export type RoomEvent = z.infer<typeof roomEvent>;
 
 export const serverMessage = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('welcome'), you: participantId, state: roomState }),
+  /** To a big screen: it sees everything and can do nothing. */
+  z.strictObject({ type: z.literal('display_welcome'), state: roomState }),
+  /** Only to the host who asked: the token for /scherm/CODE#token. */
+  z.strictObject({ type: z.literal('display_link'), token }),
   z.strictObject({ type: z.literal('state'), state: roomState }),
   z.strictObject({ type: z.literal('event'), event: roomEvent }),
   z.strictObject({ type: z.literal('error'), error: z.enum(SOCKET_ERRORS) }),

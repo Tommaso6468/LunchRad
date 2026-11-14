@@ -221,8 +221,9 @@ rooms keep running.
    Mozilla Observatory on the production URL.
 5. Share the URL and the team key with the team.
 
-## 8. Coming in later milestones
+## 8. Big screen (M9)
 
-| Milestone | What you will need to do                                       |
-| --------- | -------------------------------------------------------------- |
-| M9        | Test the big-screen view on the office TV or a laptop (1080p). |
+In a room, the host taps **Toon op groot scherm** and opens the link on the
+laptop or TV in the room (or copies it there). That device enters the team
+key once. Tap **Volledig scherm** once; the screen stays awake by itself
+where the browser supports it. A new link stops the previous one.

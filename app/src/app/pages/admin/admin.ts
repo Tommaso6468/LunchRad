@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { nl } from '../../i18n/nl';
+import { ThemeToggle } from '../../ui/theme-toggle';
 import { AdminAudit } from './admin-audit';
 import { AdminHistory } from './admin-history';
 import { AdminPresets } from './admin-presets';
@@ -23,6 +24,7 @@ const TABS: readonly Tab[] = ['restaurants', 'presets', 'rooms', 'history', 'tea
   providers: [AdminStore],
   imports: [
     RouterLink,
+    ThemeToggle,
     AdminRestaurants,
     AdminPresets,
     AdminRooms,
@@ -36,6 +38,7 @@ const TABS: readonly Tab[] = ['restaurants', 'presets', 'rooms', 'history', 'tea
       @if (store.overview(); as o) {
         <p class="hint">{{ t.signedInAs(o.email) }}</p>
       }
+      <app-theme-toggle />
       <a routerLink="/" class="button secondary small-link">{{ t.toApp }}</a>
     </header>
 

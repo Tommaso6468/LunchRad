@@ -39,8 +39,10 @@
   --space-5: 2.25rem;
 }
 
+/* Dark: follows the device, unless the person chose a theme in the app
+   (data-theme on <html>, set by ThemeService). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #0f2a24;
     --surface: #173a32;
     --ink: #e9f5ef;
@@ -56,7 +58,31 @@
     --focus: #7fb4ff;
     --drum-edge: #0f2a24;
     --ticket-glow: rgb(226 59 81 / 0.18);
+    color-scheme: dark;
   }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0f2a24;
+  --surface: #173a32;
+  --ink: #e9f5ef;
+  --muted: #a9c6bb;
+  --line: #2d5a4e;
+  --ticket: #d7263d;
+  --ticket-text: #ff9aa6;
+  --on-ticket: #ffffff;
+  --ticket-digit: #ffe08a;
+  --brass: #f2c14e;
+  --ink-on-brass: #123029;
+  --danger: #ff6b7d;
+  --focus: #7fb4ff;
+  --drum-edge: #0f2a24;
+  --ticket-glow: rgb(226 59 81 / 0.18);
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
 }
 
 *,
@@ -416,7 +442,10 @@ button.small.danger {
 
 .room-foot {
   display: flex;
-  justify-content: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
 }
 
 /* Read by screen readers, not shown. */
@@ -703,7 +732,10 @@ app-status:has(.app-status:empty) {
 
 .home-foot {
   display: flex;
-  justify-content: center;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
   padding-top: var(--space-2);
 }
 
@@ -713,5 +745,17 @@ app-status:has(.app-status:empty) {
   min-height: 2.75rem;
   padding: 0 var(--space-2);
   color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* The big screen uses the whole TV, not the phone column. */
+.shell:has(app-big-screen) {
+  max-width: none;
+  padding: 2.5vh 3vw;
+}
+
+.theme-toggle {
+  min-height: 2.5rem;
+  padding: 0.3rem 0.75rem;
   font-size: 0.9rem;
 }

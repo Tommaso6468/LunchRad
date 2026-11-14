@@ -47,7 +47,7 @@ function easeOutQuart(t: number): number {
   selector: 'app-reel',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="cabinet">
+    <div class="cabinet" [class.no-lever]="!showLever()">
       <div class="drum" aria-hidden="true">
         @for (row of rows(); track row.key) {
           <div
@@ -64,28 +64,32 @@ function easeOutQuart(t: number): number {
         <span class="pointer right"></span>
       </div>
 
-      <div class="lever-column">
-        <button
-          type="button"
-          class="lever"
-          [class.pulled]="pulled()"
-          [class.dragging]="drag() !== null"
-          [disabled]="!canPull()"
-          [attr.aria-label]="t.lever"
-          [attr.aria-describedby]="canPull() ? null : 'lever-why'"
-          (click)="click()"
-          (pointerdown)="dragStart($event)"
-          (pointermove)="dragMove($event)"
-          (pointerup)="dragEnd($event)"
-          (pointercancel)="dragCancel()"
-        >
-          <span class="shaft"></span>
-          <span
-            class="knob"
-            [style.top]="drag() === null ? null : 'calc(0.4rem + (100% - 3.8rem) * ' + drag() + ')'"
-          ></span>
-        </button>
-      </div>
+      @if (showLever()) {
+        <div class="lever-column">
+          <button
+            type="button"
+            class="lever"
+            [class.pulled]="pulled()"
+            [class.dragging]="drag() !== null"
+            [disabled]="!canPull()"
+            [attr.aria-label]="t.lever"
+            [attr.aria-describedby]="canPull() ? null : 'lever-why'"
+            (click)="click()"
+            (pointerdown)="dragStart($event)"
+            (pointermove)="dragMove($event)"
+            (pointerup)="dragEnd($event)"
+            (pointercancel)="dragCancel()"
+          >
+            <span class="shaft"></span>
+            <span
+              class="knob"
+              [style.top]="
+                drag() === null ? null : 'calc(0.4rem + (100% - 3.8rem) * ' + drag() + ')'
+              "
+            ></span>
+          </button>
+        </div>
+      }
     </div>
     @if (!canPull() && leverHint(); as hint) {
       <p id="lever-why" class="hint lever-hint">{{ hint }}</p>
@@ -101,6 +105,9 @@ function easeOutQuart(t: number): number {
       grid-template-columns: 1fr 4.5rem;
       gap: 0.75rem;
       align-items: stretch;
+    }
+    .cabinet.no-lever {
+      grid-template-columns: 1fr;
     }
     .drum {
       position: relative;
@@ -241,6 +248,8 @@ export class Reel {
   readonly spin = input<SpinView | null>(null);
   readonly canPull = input(false);
   readonly leverHint = input<string | null>(null);
+  /** The big screen shows the drum only. */
+  readonly showLever = input(true);
 
   readonly leverPulled = output();
   readonly finished = output<string>();

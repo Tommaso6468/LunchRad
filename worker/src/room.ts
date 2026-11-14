@@ -58,6 +58,8 @@ interface RoomMeta {
   visited: string[];
   /** Random id for this room's history row (room codes can be reused). */
   ref: string;
+  /** Hash of the one valid big-screen token, if the host made one. */
+  displayHash: string | null;
 }
 
 interface Vote {
@@ -101,6 +103,8 @@ interface SocketAttachment {
   /** Participant id once the socket has sent a valid hello. */
   pid: string | null;
   openedAt: number;
+  /** A big screen: read-only, not a participant, never counted or eligible. */
+  display?: boolean;
 }
 
 export interface Credentials {
@@ -147,6 +151,7 @@ export class Room extends DurableObject<Env> {
             newPlace: meta.newPlace ?? false,
             visited: meta.visited ?? [],
             ref: meta.ref ?? randomId(),
+            displayHash: meta.displayHash ?? null,
           }
         : null;
       const stored = await ctx.storage.list<Participant>({ prefix: 'p:' });
@@ -194,6 +199,7 @@ export class Room extends DurableObject<Env> {
       newPlace: false,
       visited: [...new Set(visited)].slice(0, 5000),
       ref: randomId(),
+      displayHash: null,
     };
     await this.persistMeta();
     await this.seedRestaurants(now, menu);
@@ -286,13 +292,23 @@ export class Room extends DurableObject<Env> {
       parsed = result.data;
     } catch {
       this.send(ws, { type: 'error', error: 'bad_message' });
-      if (!this.attachment(ws).pid) this.safeClose(ws, CLOSE_CODES.unauthorized, 'bad message');
+      const att = this.attachment(ws);
+      if (!att.pid && !att.display) this.safeClose(ws, CLOSE_CODES.unauthorized, 'bad message');
       return;
     }
 
     const attachment = this.attachment(ws);
+    if (attachment.display) {
+      // A big screen may only watch (its pings are answered without waking the room).
+      this.send(ws, { type: 'error', error: 'not_allowed' });
+      return;
+    }
     if (parsed.type === 'hello') {
       await this.handleHello(ws, attachment, parsed.token);
+      return;
+    }
+    if (parsed.type === 'display_hello') {
+      await this.handleDisplayHello(ws, attachment, parsed.token);
       return;
     }
     const pid = attachment.pid;
@@ -324,6 +340,9 @@ export class Room extends DurableObject<Env> {
         return;
       case 'start_spin':
         await this.handleStartSpin(ws, pid);
+        return;
+      case 'create_display':
+        await this.handleCreateDisplay(ws, pid);
         return;
       case 'set_new_place':
         await this.handleNewPlace(ws, pid, parsed.on);
@@ -396,7 +415,7 @@ export class Room extends DurableObject<Env> {
 
     for (const ws of this.ctx.getWebSockets()) {
       const att = this.attachment(ws);
-      if (!att.pid && now >= att.openedAt + LIMITS.helloTimeoutMs) {
+      if (!att.pid && !att.display && now >= att.openedAt + LIMITS.helloTimeoutMs) {
         this.safeClose(ws, CLOSE_CODES.unauthorized, 'hello timeout');
       }
     }
@@ -423,6 +442,39 @@ export class Room extends DurableObject<Env> {
     this.send(ws, { type: 'welcome', you: pid, state: this.stateView() });
     await this.maybeHandOffHost(this.now());
     this.broadcastState();
+    await this.scheduleAlarm();
+  }
+
+  /** The host makes a big-screen link. The previous one stops working at once. */
+  private async handleCreateDisplay(ws: WebSocket, pid: string): Promise<void> {
+    const meta = this.meta;
+    if (!meta) return;
+    if (!this.isHost(pid)) return this.reject(ws, 'not_host');
+    const token = randomToken();
+    meta.displayHash = await sha256Base64url(token);
+    await this.persistMeta();
+    for (const other of this.ctx.getWebSockets()) {
+      if (this.attachment(other).display) {
+        this.safeClose(other, CLOSE_CODES.unauthorized, 'display replaced');
+      }
+    }
+    this.send(ws, { type: 'display_link', token });
+  }
+
+  private async handleDisplayHello(
+    ws: WebSocket,
+    att: SocketAttachment,
+    token: string,
+  ): Promise<void> {
+    const meta = this.meta;
+    if (!meta || att.pid || att.display) return;
+    if (meta.displayHash === null || (await sha256Base64url(token)) !== meta.displayHash) {
+      this.send(ws, { type: 'error', error: 'unauthorized' });
+      this.safeClose(ws, CLOSE_CODES.unauthorized, 'unauthorized');
+      return;
+    }
+    ws.serializeAttachment({ ...att, display: true } satisfies SocketAttachment);
+    this.send(ws, { type: 'display_welcome', state: this.stateView() });
     await this.scheduleAlarm();
   }
 
@@ -863,7 +915,7 @@ export class Room extends DurableObject<Env> {
     }
     for (const ws of this.ctx.getWebSockets()) {
       const att = this.attachment(ws);
-      if (!att.pid) deadlines.push(att.openedAt + LIMITS.helloTimeoutMs);
+      if (!att.pid && !att.display) deadlines.push(att.openedAt + LIMITS.helloTimeoutMs);
     }
     await this.ctx.storage.setAlarm(Math.max(Math.min(...deadlines), now + 50));
   }
@@ -1005,8 +1057,8 @@ export class Room extends DurableObject<Env> {
     const data = JSON.stringify(message);
     for (const ws of this.ctx.getWebSockets()) {
       if (ws === exclude || ws.readyState !== OPEN) continue;
-      const pid = this.attachment(ws).pid;
-      if (pid && this.participants.has(pid)) this.sendRaw(ws, data);
+      const att = this.attachment(ws);
+      if (att.display || (att.pid && this.participants.has(att.pid))) this.sendRaw(ws, data);
     }
   }
 
