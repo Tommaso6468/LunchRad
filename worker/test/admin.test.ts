@@ -382,6 +382,46 @@ describe('team key', () => {
   });
 });
 
+describe('own team key', () => {
+  const db = () => (env as unknown as { DB: D1Database }).DB;
+
+  it('accepts a long enough key, matched without case or extra spaces', async () => {
+    const res = await adminJson(token, '/team-key/rotate', { teamKey: '  Kroket Fiets  Wolk ' });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { teamKey: string }).teamKey).toBe('kroket fiets wolk');
+    expect((await call('/api/session', jsonInit({ teamKey: 'KROKET fiets wolk' }))).status).toBe(
+      200,
+    );
+    expect((await call('/api/session', jsonInit({ teamKey: 'kroket fiets' }))).status).toBe(401);
+
+    const entry = (await audit()).entries[0];
+    expect(entry).toMatchObject({ action: 'rotate', detail: { chosen: 'custom' } });
+    expect(JSON.stringify(entry)).not.toContain('kroket');
+    expect(
+      JSON.stringify((await db().prepare('SELECT * FROM team_key').all()).results),
+    ).not.toContain('kroket');
+    await db().prepare('DELETE FROM team_key').run();
+  });
+
+  it('refuses weak keys and leaves the current key in place', async () => {
+    for (const weak of [
+      'kort',
+      'aaaaaaaaaaaaaaaa',
+      '123412341234',
+      '1234 5678 9012',
+      'x'.repeat(65),
+    ]) {
+      const res = await adminJson(token, '/team-key/rotate', { teamKey: weak });
+      expect(await res.json(), weak).toEqual({ error: 'weak_team_key' });
+    }
+    expect((await adminJson(token, '/team-key/rotate', { teamKey: 1 })).status).toBe(400);
+    expect((await adminJson(token, '/team-key/rotate', { key: 'kroket fiets wolk' })).status).toBe(
+      400,
+    );
+    expect((await call('/api/session', jsonInit({ teamKey: 'test-team-key' }))).status).toBe(200);
+  });
+});
+
 describe('audit log', () => {
   it('pages backwards and rejects bad cursors', async () => {
     for (let i = 0; i < 3; i++) await adminJson(token, '/restaurants', { name: `Pagina ${i}` });

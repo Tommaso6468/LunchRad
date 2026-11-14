@@ -21,6 +21,8 @@ import {
   presetInput,
   presetRestaurantsInput,
   restaurantInput,
+  acceptableTeamKey,
+  teamKeyInput,
   type AdminError,
 } from '@lunchrad/shared';
 import { Hono, type Context, type Next } from 'hono';
@@ -64,6 +66,7 @@ const STATUS: Record<AdminError, 400 | 401 | 403 | 404 | 409 | 500 | 503> = {
   too_many_presets: 409,
   too_many_restaurants: 400,
   default_preset: 409,
+  weak_team_key: 400,
   server_error: 500,
 };
 
@@ -421,7 +424,20 @@ admin.get('/team-key', async (c) => ok(await teamKeySource(c.get('env'))));
  */
 admin.post('/team-key/rotate', async (c) => {
   const env = c.get('env');
-  const teamKey = generateTeamKey();
+  // With a JSON body {teamKey}: the admin's own key. Without a body: a generated one.
+  let teamKey: string;
+  let chosen: 'custom' | 'generated';
+  if (c.req.header('Content-Length') === '0' || !c.req.raw.body) {
+    teamKey = generateTeamKey();
+    chosen = 'generated';
+  } else {
+    const parsed = teamKeyInput.safeParse(await body(c));
+    if (!parsed.success) return fail('bad_request');
+    const key = acceptableTeamKey(parsed.data.teamKey);
+    if (!key) return fail('weak_team_key');
+    teamKey = key;
+    chosen = 'custom';
+  }
   const rotatedAt = Date.now();
   const email = c.get('admin').email;
   await env.DB.batch([
@@ -434,6 +450,7 @@ admin.post('/team-key/rotate', async (c) => {
       action: 'rotate',
       entity: 'team_key',
       entityId: null,
+      detail: { chosen },
     }),
   ]);
   clearTeamKeyCache();

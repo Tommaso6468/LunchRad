@@ -32,6 +32,7 @@ export const ADMIN_ERRORS = [
   'too_many_presets',
   'too_many_restaurants',
   'default_preset',
+  'weak_team_key',
   'server_error',
 ] as const;
 export type AdminError = (typeof ADMIN_ERRORS)[number];
@@ -111,6 +112,31 @@ export const auditPage = z.strictObject({
   nextBefore: z.nullable(z.number()),
 });
 export type AuditPage = z.infer<typeof auditPage>;
+
+/** Rules for a team key an admin types in (the generated ones are always stronger). */
+export const TEAM_KEY_MIN = 12;
+export const TEAM_KEY_MAX = 64;
+
+/** Team keys are compared without case and with spaces collapsed: phones like to capitalise. */
+export function normalizeTeamKey(input: string): string {
+  return input.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+/** The normalized key when it is acceptable, otherwise null. */
+export function acceptableTeamKey(input: string): string | null {
+  const key = normalizeTeamKey(input);
+  const length = [...key].length;
+  if (length < TEAM_KEY_MIN || length > TEAM_KEY_MAX) return null;
+  // No control characters; no "aaaaaaaaaaaa" or "123123123123".
+  if ([...key].some((ch) => ch.charCodeAt(0) < 0x20 || ch.charCodeAt(0) === 0x7f)) return null;
+  if (new Set(key).size < 6) return null;
+  if (/^[0-9 ]+$/.test(key)) return null;
+  return key;
+}
+
+export const teamKeyInput = z.strictObject({
+  teamKey: z.string().check(z.maxLength(200)),
+});
 
 export const teamKeyRotated = z.strictObject({ teamKey: z.string(), rotatedAt: z.number() });
 export const teamKeyStatus = z.strictObject({

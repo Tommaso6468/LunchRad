@@ -88,8 +88,10 @@ export class AdminApi {
     return this.request('GET', '/team-key', undefined, teamKeyStatus);
   }
 
-  async rotateTeamKey(): Promise<string> {
-    return (await this.request('POST', '/team-key/rotate', undefined, teamKeyRotated)).teamKey;
+  /** With a key: sets that key. Without: the server generates a strong one. */
+  async rotateTeamKey(teamKey?: string): Promise<string> {
+    const body = teamKey === undefined ? undefined : { teamKey };
+    return (await this.request('POST', '/team-key/rotate', body, teamKeyRotated)).teamKey;
   }
 
   audit(before: number | null): Promise<AuditPage> {
