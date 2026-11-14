@@ -75,7 +75,9 @@ export const nl = {
     add: 'Restaurant toevoegen',
     full: 'Het rad is vol: maximaal 30 restaurants.',
     odds: (slices: number, total: number) => `${slices}/${total}`,
-    oddsLabel: (slices: number, total: number) => `${slices} van de ${total} vakken op het rad`,
+    percent: (slices: number, total: number) => `${Math.round((slices / total) * 100)}%`,
+    oddsLabel: (slices: number, total: number) =>
+      `${Math.round((slices / total) * 100)} procent kans: ${slices} van de ${total} vakken op het rad`,
     boostedBy: (names: string[]) => `Boost van ${names.join(', ')}`,
     boost: 'Boost',
     boosted: 'Geboost',

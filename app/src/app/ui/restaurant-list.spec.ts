@@ -53,8 +53,13 @@ async function expand(view: Awaited<ReturnType<typeof render>>, index: number) {
 describe('RestaurantList', () => {
   it('shows each restaurant’s share of the wheel on one compact line', async () => {
     const { el } = await render(TOM, false);
-    const odds = [...el.querySelectorAll('.odds')].map((o) => o.textContent?.trim());
-    expect(odds).toEqual(['3/4', '1/4']);
+    const pct = [...el.querySelectorAll('.odds .pct')].map((o) => o.textContent?.trim());
+    const frac = [...el.querySelectorAll('.odds .frac')].map((o) => o.textContent?.trim());
+    expect(pct).toEqual(['75%', '25%']);
+    expect(frac).toEqual(['3/4', '1/4']);
+    expect(el.querySelector('.odds')?.getAttribute('aria-label')).toBe(
+      '75 procent kans: 3 van de 4 vakken op het rad',
+    );
   });
 
   it('shows every food type as its own tag', async () => {
