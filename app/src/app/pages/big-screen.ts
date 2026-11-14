@@ -211,7 +211,7 @@ interface WakeLock {
     .mark {
       font-family: var(--font-display);
       font-size: 2rem;
-      color: var(--ticket-text);
+      color: var(--ticket);
     }
     .status {
       flex: 1;

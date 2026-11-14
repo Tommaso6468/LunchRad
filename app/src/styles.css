@@ -127,7 +127,7 @@ h2 {
   font-weight: 400;
   font-size: clamp(3rem, 15vw, 4.25rem);
   letter-spacing: -0.01em;
-  color: var(--ticket-text);
+  color: var(--ticket);
   text-shadow: 0.06em 0.06em 0 var(--ink);
 }
 
