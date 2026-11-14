@@ -1,6 +1,6 @@
 # Threat model
 
-Version 8 — M7 (14 November 2026). Update this file in every milestone that
+Version 9 — M8 (14 November 2026). Update this file in every milestone that
 changes the attack surface.
 
 ## Assets
@@ -26,7 +26,7 @@ changes the attack surface.
 | #   | Category               | Threat                                                            | Control                                                                                                                                                                                                                                                                         | Milestone  |
 | --- | ---------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
 | S1  | Spoofing               | Outsider guesses a room code and joins                            | Team session required on join **and** WebSocket; 32^6 codes; join and WebSocket rate limits per IP                                                                                                                                                                              | M1 ✓       |
-| S2  | Spoofing               | Someone joins under a colleague's name                            | Unique names per room (case-insensitive, NFC); host kick                                                                                                                                                                                                                        | M1 ✓       |
+| S2  | Spoofing               | Someone joins under a colleague's name                            | Unique names per room (case-insensitive, NFC); no Latin mixed with Cyrillic or Greek (lookalikes); host kick                                                                                                                                                                    | M1 ✓, M8 ✓ |
 | S4  | Spoofing               | Brute-forcing the shared team key                                 | 10 attempts/min/IP, constant-time compare, minimum length enforced, guidance for a long random key                                                                                                                                                                              | M1 ✓       |
 | S3  | Spoofing               | Forged admin request                                              | Access in front of `/admin`; the Worker verifies the RS256 signature (JWKS), issuer, audience, expiry and an email allow-list; RS256 only; fails closed without config                                                                                                          | M5 ✓       |
 | T1  | Tampering              | Client claims host role or sends a winner                         | Roles and winner exist only server-side; `start_spin` has no parameters; winner from `crypto.getRandomValues` with rejection sampling                                                                                                                                           | M1 ✓, M3 ✓ |

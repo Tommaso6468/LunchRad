@@ -29,6 +29,8 @@ export const api = new Hono<AppEnv>();
 async function limited(limiter: RateLimit, key: string): Promise<boolean> {
   try {
     const { success } = await limiter.limit({ key });
+    // Only the route (the part before ':'), never the IP: enough to tune the limits.
+    if (!success) console.warn('Rate limited', { route: key.split(':')[0] });
     return !success;
   } catch (err) {
     // Fail open on limiter outages: Turnstile and the team key still apply.
@@ -65,6 +67,10 @@ api.post('/session', async (c) => {
   const env = configured(c);
   if (!env) return apiError('not_configured');
   if (await limited(env.SESSION_LIMITER, `session:${clientIp(c.req.raw)}`)) {
+    return apiError('rate_limited');
+  }
+  // Second gate across all IPs: distributed guessing gets nowhere either.
+  if (await limited(env.SESSION_GLOBAL_LIMITER, 'session-global:all')) {
     return apiError('rate_limited');
   }
   const body = sessionRequest.safeParse(await readJson(c.req.raw));
@@ -120,10 +126,19 @@ api.post('/rooms', requireTeamSession, async (c) => {
 });
 
 /** Where the team ended up: totals, most picked, latest. Restaurant names and times only. */
-api.get('/stats', requireTeamSession, async (c) => apiOk(await stats(c.env.DB)));
+api.get('/stats', requireTeamSession, async (c) => {
+  // Each call reads every history row (D1 free plan: 5 million rows a day): rate limited.
+  if (await limited(c.env.JOIN_LIMITER, `read:${clientIp(c.req.raw)}`)) {
+    return apiError('rate_limited');
+  }
+  return apiOk(await stats(c.env.DB));
+});
 
 /** The presets a host can start a room with (names only). */
 api.get('/presets', requireTeamSession, async (c) => {
+  if (await limited(c.env.JOIN_LIMITER, `read:${clientIp(c.req.raw)}`)) {
+    return apiError('rate_limited');
+  }
   return apiOk({ presets: await presetSummaries(c.env.DB) });
 });
 

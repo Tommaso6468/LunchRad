@@ -53,3 +53,5 @@ The gate checklist and each milestone's written assessment live in
   the limiter itself is unavailable; the team key and Turnstile still apply.
 - **Single admin**: if the owner loses access to the admin email or the
   Cloudflare account, presets cannot be changed. The app keeps working.
+
+The current security assessment is in [docs/security-assessment.md](docs/security-assessment.md); the incident runbook in [docs/runbook.md](docs/runbook.md).

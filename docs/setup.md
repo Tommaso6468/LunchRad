@@ -188,8 +188,41 @@ HMAC of the key is stored; it lives in D1 and survives every deploy. From then o
 Every device has to enter the new key (within 30 seconds everywhere); open
 rooms keep running.
 
-## 6. Coming in later milestones
+## 6. Hardening checks (M8)
 
-| Milestone | What you will need to do                                                                 |
-| --------- | ---------------------------------------------------------------------------------------- |
-| M8        | Run the full ZAP scan and the restore test of D1; approve the final security assessment. |
+- **Security scan of staging**: GitHub → Actions → **Security scan
+  (staging)** → Run workflow. It runs OWASP ZAP's full scan against the
+  staging URL. First allow the action: Settings → Actions → General →
+  allowed actions → add `zaproxy/action-full-scan@*`. The report is a job
+  artifact (visible to anyone logged in to GitHub, like the code).
+- **Restore drill**: GitHub → Actions → **D1 restore drill (staging)** → Run
+  workflow. Uses the existing CI token (needs D1 Edit).
+- **Abuse tests** (from a computer): `npm run dev`, then
+  `pip install requests websockets==13.1` and
+  `python3 scripts/security/abuse.py`. Local only; it refuses other URLs.
+- What to do when something goes wrong: [runbook](runbook.md).
+
+## 7. Launch (production)
+
+1. Worker `lunchrad` → Variables and Secrets (type Secret):
+   `TEAM_KEY` (new, not the staging one), `SESSION_SECRET` (new:
+   `openssl rand -base64 48`), `TURNSTILE_SECRET_KEY` and
+   `TURNSTILE_SITE_KEY` (same widget; its hostnames already include
+   production), `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` (from step 2),
+   `ADMIN_EMAILS`.
+2. Zero Trust → Access controls → Applications → **Add** → Self-hosted:
+   `Lunchrad beheer`, domain `lunchrad.tommasovangelderen.workers.dev`, path
+   `admin`, One-time PIN, policy Allow → your email. Copy its AUD tag.
+3. GitHub → Releases → **Draft a new release** → tag `v1.0.0` on `main` →
+   Publish → approve the deployment. The workflow applies the database
+   migrations, deploys and runs the smoke test.
+4. Check: open the production URL, enter the team key, make a room, spin
+   once; open `/admin` in a private window (Cloudflare login first);
+   Mozilla Observatory on the production URL.
+5. Share the URL and the team key with the team.
+
+## 8. Coming in later milestones
+
+| Milestone | What you will need to do                                       |
+| --------- | -------------------------------------------------------------- |
+| M9        | Test the big-screen view on the office TV or a laptop (1080p). |

@@ -150,3 +150,12 @@ describe('service worker script', () => {
     expect((await call('/sw.js', {}, swEnv(404))).status).toBe(404);
   });
 });
+
+describe('hidden paths', () => {
+  it('answers 404 for dot paths instead of the app shell', async () => {
+    for (const path of ['/.git/config', '/.env', '/._darcs', '/r/.hidden', '/.well-known/x']) {
+      expect((await call(path)).status, path).toBe(404);
+    }
+    expect((await call('/r/K7Q4M0')).status).toBe(200);
+  });
+});

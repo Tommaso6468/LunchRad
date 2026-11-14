@@ -1,0 +1,6 @@
+10015	IGNORE	(Re-examine Cache-control: no-store on the shell is deliberate, see M4 F6)
+10027	IGNORE	(Suspicious comments: words like admin/db in minified bundles, see the M8 review)
+10109	IGNORE	(Modern web application: informational)
+10049	IGNORE	(Storable and cacheable content: hashed assets are cacheable on purpose)
+6	OUTOFSCOPE	.*/api/rooms.*
+6	OUTOFSCOPE	.*/admin/api/restaurants.*
