@@ -51,7 +51,8 @@ interface Row {
                   }
                 </button>
                 <span class="odds" [attr.aria-label]="t.oddsLabel(r.slices, total())" role="img">
-                  {{ t.odds(r.slices, total()) }}
+                  <span class="pct">{{ t.percent(r.slices, total()) }}</span>
+                  <span class="frac">{{ t.odds(r.slices, total()) }}</span>
                 </span>
                 <button
                   type="button"
@@ -161,10 +162,9 @@ interface Row {
     }
     .r-categories {
       display: flex;
+      flex-wrap: wrap;
       gap: 0.3rem;
       max-width: 100%;
-      overflow: hidden;
-      white-space: nowrap;
     }
     .tag {
       padding: 0 0.45rem;
@@ -174,9 +174,20 @@ interface Row {
       font-size: 0.8rem;
     }
     .odds {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      min-width: 3.2rem;
       font-family: var(--font-code);
       font-weight: 600;
-      font-size: 0.9rem;
+      line-height: 1.15;
+    }
+    .pct {
+      font-size: 0.95rem;
+    }
+    .frac {
+      color: var(--muted);
+      font-size: 0.75rem;
     }
     .boost {
       min-height: 2.75rem;
