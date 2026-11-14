@@ -40,6 +40,8 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('message', (event) => {
+  // Only pages of this origin can reach this worker, but check anyway.
+  if (event.origin !== self.location.origin) return;
   if (event.data === 'update') self.skipWaiting();
 });
 
