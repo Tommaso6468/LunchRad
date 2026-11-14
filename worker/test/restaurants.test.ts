@@ -5,7 +5,7 @@ import {
   normalizeRestaurantName,
 } from '@lunchrad/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SEED_RESTAURANTS } from '../src/seed-preset.ts';
+import { env } from 'cloudflare:workers';
 import {
   connectAs,
   createRoom,
@@ -46,28 +46,54 @@ async function room() {
   return { host, tom, hostSocket, tomSocket };
 }
 
-describe('seed preset', () => {
-  it('only contains entries that pass the restaurant rules', () => {
-    expect(SEED_RESTAURANTS.length).toBeLessThanOrEqual(LIMITS.maxRestaurants);
-    for (const seed of SEED_RESTAURANTS) {
-      expect(normalizeRestaurantName(seed.name), seed.name).toBe(seed.name);
-      expect(normalizeCategories(seed.categories), seed.name).toEqual(seed.categories ?? []);
-      expect(normalizeMapsUrl(seed.mapsUrl), seed.name).toBe(seed.mapsUrl ?? null);
+interface SeedRow {
+  name: string;
+  categories: string;
+  maps_url: string | null;
+}
+
+/** The default preset straight from D1 (migration 0002), in wheel order. */
+async function defaultPreset(): Promise<
+  { name: string; categories: string[]; mapsUrl: string | null }[]
+> {
+  const { results } = await (env as unknown as { DB: D1Database }).DB.prepare(
+    `SELECT r.name, r.categories, r.maps_url FROM preset p
+       JOIN preset_restaurant pr ON pr.preset_id = p.id
+       JOIN restaurant r ON r.id = pr.restaurant_id
+      WHERE p.is_default = 1 ORDER BY pr.position`,
+  ).all<SeedRow>();
+  return results.map((r) => ({
+    name: r.name,
+    categories: JSON.parse(r.categories) as string[],
+    mapsUrl: r.maps_url,
+  }));
+}
+
+describe('seed preset (migration)', () => {
+  it('only contains entries that pass the restaurant rules', async () => {
+    const seed = await defaultPreset();
+    expect(seed.length).toBeGreaterThanOrEqual(2);
+    expect(seed.length).toBeLessThanOrEqual(LIMITS.maxRestaurants);
+    for (const r of seed) {
+      expect(normalizeRestaurantName(r.name), r.name).toBe(r.name);
+      expect(normalizeCategories(r.categories), r.name).toEqual(r.categories);
+      expect(normalizeMapsUrl(r.mapsUrl), r.name).toBe(r.mapsUrl);
     }
   });
 });
 
 describe('new rooms', () => {
-  it('start with the seed restaurants, in order, as preset entries', async () => {
+  it('start with the default preset, in order, as preset entries', async () => {
+    const seed = await defaultPreset();
     const host = await createRoom('Sanne');
     const socket = await connectAs(host);
     const state = (socket.messages[0] as { state: { restaurants: unknown[] } }).state;
     expect(state.restaurants).toEqual(
-      SEED_RESTAURANTS.map((seed) => ({
+      seed.map((r) => ({
         id: expect.stringMatching(/^[a-f0-9]{16}$/),
-        name: seed.name,
-        categories: seed.categories ?? [],
-        mapsUrl: seed.mapsUrl ?? null,
+        name: r.name,
+        categories: r.categories,
+        mapsUrl: r.mapsUrl,
         addedBy: null,
       })),
     );
@@ -145,7 +171,8 @@ describe('adding restaurants', () => {
     // Two sockets, so neither hits the per-socket message budget.
     const a = await connectAs(host);
     const b = await connectAs(tom);
-    for (let i = SEED_RESTAURANTS.length; i < LIMITS.maxRestaurants; i++) {
+    const start = (await a.stateWhere(() => true)).restaurants.length;
+    for (let i = start; i < LIMITS.maxRestaurants; i++) {
       await add(i % 2 ? b : a, `Plek ${i}`);
       if (i % 15 === 14) await new Promise((r) => setTimeout(r, 0));
     }

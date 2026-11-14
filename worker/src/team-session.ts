@@ -5,19 +5,16 @@
  * Token: base64url(payload) "." base64url(HMAC-SHA256(SESSION_SECRET, payload))
  * Payload: { v: 1, kf: <team-key fingerprint>, exp: <ms> }
  *
- * The fingerprint is derived from the current TEAM_KEY, so rotating the team
- * key invalidates every existing session at once.
+ * The fingerprint is derived from the current team key (see team-key.ts), so
+ * rotating the key invalidates every existing session at once.
  */
 import { LIMITS } from '@lunchrad/shared';
 import { base64url, fromBase64url, hmac, hmacVerify } from './crypto.ts';
 import type { ConfiguredEnv } from './env.ts';
+import { teamKeyFingerprint } from './team-key.ts';
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
-
-async function keyFingerprint(env: ConfiguredEnv): Promise<string> {
-  return base64url((await hmac(env.SESSION_SECRET, `team-key:${env.TEAM_KEY}`)).slice(0, 12));
-}
 
 export async function issueTeamSession(
   env: ConfiguredEnv,
@@ -25,7 +22,7 @@ export async function issueTeamSession(
 ): Promise<{ token: string; expiresAt: number }> {
   const expiresAt = now + LIMITS.teamSessionMs;
   const payload = base64url(
-    encoder.encode(JSON.stringify({ v: 1, kf: await keyFingerprint(env), exp: expiresAt })),
+    encoder.encode(JSON.stringify({ v: 1, kf: await teamKeyFingerprint(env), exp: expiresAt })),
   );
   const signature = base64url(await hmac(env.SESSION_SECRET, payload));
   return { token: `${payload}.${signature}`, expiresAt };
@@ -53,5 +50,5 @@ export async function verifyTeamSession(
   }
   if (typeof data !== 'object' || data === null) return false;
   const { v, kf, exp } = data as Record<string, unknown>;
-  return v === 1 && typeof exp === 'number' && exp > now && kf === (await keyFingerprint(env));
+  return v === 1 && typeof exp === 'number' && exp > now && kf === (await teamKeyFingerprint(env));
 }

@@ -2,9 +2,11 @@ import { Injectable, inject } from '@angular/core';
 import {
   apiErrorBody,
   configResponse,
+  presetList,
   roomCredentials,
   sessionResponse,
   type ApiError,
+  type PresetSummary,
   type RoomCredentials,
 } from '@lunchrad/shared';
 import { DeviceStore } from './storage';
@@ -33,8 +35,17 @@ export class Api {
     this.storage.saveTeamSession(session);
   }
 
-  createRoom(name: string, turnstileToken: string): Promise<RoomCredentials> {
-    return this.request('POST', '/api/rooms', { name, turnstileToken }, roomCredentials, true);
+  createRoom(
+    name: string,
+    turnstileToken: string,
+    presetId: string | null,
+  ): Promise<RoomCredentials> {
+    const body = presetId ? { name, turnstileToken, presetId } : { name, turnstileToken };
+    return this.request('POST', '/api/rooms', body, roomCredentials, true);
+  }
+
+  async presets(): Promise<PresetSummary[]> {
+    return (await this.request('GET', '/api/presets', undefined, presetList, true)).presets;
   }
 
   joinRoom(code: string, name: string): Promise<RoomCredentials> {

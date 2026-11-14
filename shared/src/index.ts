@@ -18,3 +18,4 @@ export {
   normalizeRestaurantName,
   restaurantKey,
 } from './restaurants';
+export * from './admin';

@@ -4,3 +4,7 @@ TEAM_KEY=lokaal-team
 SESSION_SECRET=local-dev-session-secret-at-least-32-characters
 TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
 TURNSTILE_SITE_KEY=1x00000000000000000000AA
+# Admin (/admin): without Cloudflare Access locally, the admin API answers 503.
+# ACCESS_TEAM_DOMAIN=yourteam.cloudflareaccess.com
+# ACCESS_AUD=<64-character AUD tag>
+# ADMIN_EMAILS=you@example.com

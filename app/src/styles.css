@@ -528,3 +528,128 @@ button.small.danger {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- Admin ---------- */
+
+app-admin {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.admin-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  padding-top: var(--space-2);
+}
+
+.admin-head .small-link {
+  margin-left: auto;
+  min-height: 2.5rem;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.admin-tabs {
+  flex-wrap: wrap;
+}
+
+.admin-tabs [role='tab'] {
+  flex: 1 1 30%;
+}
+
+.admin-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.admin-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line);
+}
+
+.admin-list > li:first-child {
+  border-top: 0;
+}
+
+.item-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.actions.wrap {
+  flex-wrap: wrap;
+}
+
+.choose {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3);
+  border: 2px solid var(--line);
+  border-radius: 0.75rem;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  font-weight: 400;
+}
+
+.check input {
+  width: 1.4rem;
+  min-height: 1.4rem;
+  accent-color: var(--ticket);
+}
+
+.inline-form .row input {
+  flex: 1 1 12rem;
+}
+
+select {
+  font: inherit;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.6rem 0.8rem;
+  color: var(--ink);
+  background: var(--bg);
+  border: 2px solid var(--ink);
+  border-radius: 0.6rem;
+}
+
+app-admin-restaurants,
+app-admin-presets,
+app-admin-rooms,
+app-admin-team-key,
+app-admin-audit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Same shape on every row: details first, then the buttons. */
+.admin-list > li {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+@media (min-width: 40rem) {
+  .admin-list > li {
+    flex-direction: row;
+    align-items: center;
+  }
+}

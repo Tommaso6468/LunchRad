@@ -10,6 +10,7 @@ const STATUS: Record<ApiError, number> = {
   name_taken: 409,
   room_full: 409,
   room_not_found: 404,
+  preset_not_found: 404,
   not_found: 404,
   not_configured: 503,
   server_error: 500,

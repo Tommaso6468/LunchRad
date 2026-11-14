@@ -32,9 +32,9 @@ import {
 } from '@lunchrad/shared';
 import { DurableObject } from 'cloudflare:workers';
 import { randomId, randomToken, sha256Base64url } from './crypto.ts';
+import { unregisterRoom, type MenuItem } from './db.ts';
 import type { Env } from './env.ts';
 import { buildReel, randomIndex } from './spin.ts';
-import { SEED_RESTAURANTS } from './seed-preset.ts';
 
 interface RoomMeta {
   code: string;
@@ -101,7 +101,13 @@ export interface Credentials {
   token: string;
 }
 export type InitResult =
-  ({ ok: true } & Credentials) | { ok: false; error: 'exists' | 'invalid_name' };
+  | ({ ok: true; createdAt: number; expiresAt: number } & Credentials)
+  | { ok: false; error: 'exists' | 'invalid_name' };
+export interface RoomSummary {
+  phase: 'lobby' | 'spinning' | 'voting' | 'result';
+  participants: number;
+  connected: number;
+}
 export type JoinResult =
   | ({ ok: true } & Credentials)
   | { ok: false; error: 'room_not_found' | 'invalid_name' | 'name_taken' | 'room_full' };
@@ -149,7 +155,8 @@ export class Room extends DurableObject<Env> {
 
   // ---------- RPC from the Worker ----------
 
-  async init(code: string, rawName: string): Promise<InitResult> {
+  /** `menu` is the chosen preset, read from D1 by the Worker; checked again here. */
+  async init(code: string, rawName: string, menu: readonly MenuItem[]): Promise<InitResult> {
     if (this.meta) return { ok: false, error: 'exists' };
     const name = normalizeName(rawName);
     if (!name) return { ok: false, error: 'invalid_name' };
@@ -171,9 +178,15 @@ export class Room extends DurableObject<Env> {
       finalAt: null,
     };
     await this.persistMeta();
-    await this.seedRestaurants(now);
+    await this.seedRestaurants(now, menu);
     await this.scheduleAlarm();
-    return { ok: true, participantId: host.participant.id, token: host.token };
+    return {
+      ok: true,
+      participantId: host.participant.id,
+      token: host.token,
+      createdAt: now,
+      expiresAt: this.meta.expiresAt,
+    };
   }
 
   async join(rawName: string): Promise<JoinResult> {
@@ -188,6 +201,23 @@ export class Room extends DurableObject<Env> {
     const { participant, token } = await this.newParticipant(name, this.now());
     this.broadcastState();
     return { ok: true, participantId: participant.id, token };
+  }
+
+  /** For the admin room list. Null when the room does not exist (any more). */
+  async summary(): Promise<RoomSummary | null> {
+    if (!this.meta) return null;
+    return {
+      phase: this.meta.phase,
+      participants: this.participants.size,
+      connected: this.connectedIds().size,
+    };
+  }
+
+  /** Closes the room for everyone on an admin's request. */
+  async adminClose(): Promise<boolean> {
+    if (!this.meta) return false;
+    await this.closeRoom('closed_by_admin');
+    return true;
   }
 
   // ---------- WebSocket upgrade ----------
@@ -658,14 +688,17 @@ export class Room extends DurableObject<Env> {
     this.send(ws, { type: 'error', error });
   }
 
-  private async seedRestaurants(now: number): Promise<void> {
+  private async seedRestaurants(now: number, menu: readonly MenuItem[]): Promise<void> {
     let order = 0;
-    for (const seed of SEED_RESTAURANTS.slice(0, LIMITS.maxRestaurants)) {
-      const name = normalizeRestaurantName(seed.name);
-      const categories = normalizeCategories(seed.categories);
-      const mapsUrl = normalizeMapsUrl(seed.mapsUrl);
-      // Invalid seed entries are skipped, never stored unchecked.
+    const seen = new Set<string>();
+    for (const item of menu.slice(0, LIMITS.maxRestaurants)) {
+      const name = normalizeRestaurantName(item.name);
+      const categories = normalizeCategories(item.categories);
+      const mapsUrl = normalizeMapsUrl(item.mapsUrl);
+      // Invalid or duplicate entries are skipped, never stored unchecked.
       if (!name || categories === undefined || mapsUrl === undefined) continue;
+      if (seen.has(restaurantKey(name))) continue;
+      seen.add(restaurantKey(name));
       await this.putRestaurant({
         id: randomId(),
         name,
@@ -734,6 +767,7 @@ export class Room extends DurableObject<Env> {
   // ---------- Room lifecycle ----------
 
   private async closeRoom(reason: CloseReason): Promise<void> {
+    const code = this.meta?.code;
     for (const ws of this.ctx.getWebSockets()) {
       this.send(ws, { type: 'closed', reason });
       this.safeClose(ws, CLOSE_CODES.roomClosed, reason);
@@ -746,6 +780,12 @@ export class Room extends DurableObject<Env> {
     // the same code can later start a completely fresh room.
     await this.ctx.storage.deleteAlarm();
     await this.ctx.storage.deleteAll();
+    if (code) {
+      // Best effort: a stale row expires on its own.
+      await unregisterRoom(this.env.DB, code).catch((err: unknown) =>
+        console.error('Could not unregister room', { name: (err as Error).name }),
+      );
+    }
   }
 
   private async scheduleAlarm(): Promise<void> {

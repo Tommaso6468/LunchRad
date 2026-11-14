@@ -4,6 +4,8 @@ export interface Env {
   ASSETS: Fetcher;
   ROOMS: DurableObjectNamespace<Room>;
   ENVIRONMENT: string;
+  /** Presets, the admin audit log, the open-room registry, the admin-set team key. */
+  DB: D1Database;
 
   // Secrets (wrangler secret put / dashboard). Missing secrets make the room
   // API answer 503 instead of running with an insecure default.
@@ -11,6 +13,14 @@ export interface Env {
   SESSION_SECRET?: string | undefined;
   TURNSTILE_SECRET_KEY?: string | undefined;
   TURNSTILE_SITE_KEY?: string | undefined;
+
+  // Admin (Cloudflare Access). Missing values make the admin API answer 503.
+  /** Your Zero Trust team domain, e.g. "lunchrad.cloudflareaccess.com". */
+  ACCESS_TEAM_DOMAIN?: string | undefined;
+  /** The Access application's audience (AUD) tag. */
+  ACCESS_AUD?: string | undefined;
+  /** Comma-separated email addresses allowed in, checked after Access. */
+  ADMIN_EMAILS?: string | undefined;
 
   // Workers rate limiting bindings (approximate, per Cloudflare location).
   SESSION_LIMITER: RateLimit;

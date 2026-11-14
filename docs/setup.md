@@ -122,8 +122,9 @@ Repeat for `lunchrad` (production) after its first release exists, with its own
 `SESSION_SECRET`. Command-line alternative: `npx wrangler secret put TEAM_KEY --env staging`
 in `worker/`.
 
-**Rotating the team key** (someone left the team, or it leaked): change `TEAM_KEY`.
-Every device then has to enter the new key once; open rooms keep working.
+**Rotating the team key** (someone left the team, or it leaked): from M5 on,
+use the admin panel (part 5). Changing `TEAM_KEY` only works as long as the
+key has never been rotated in the admin panel.
 
 ### Check after deploying
 
@@ -137,9 +138,56 @@ Cloudflare. Then run the ZAP baseline scan (part 3) against staging.
 Copy `worker/.dev.vars.example` to `worker/.dev.vars` (Cloudflare's public test
 keys, always-pass), then `npm run dev`.
 
-## 4. Coming in later milestones
+## 5. Admin and presets (M5)
 
-| Milestone | What you will need to do                                                                                                                                                                                                |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M5        | Create a **D1** database per environment; set up **Cloudflare Zero Trust** (free plan), an Access application on `/admin` with an email one-time-PIN policy for your address only; add D1 permissions to the API token. |
-| M7        | Run the full ZAP scan and the restore test of D1; approve the final security assessment.                                                                                                                                |
+The admin panel lives at `/admin`. Cloudflare Access logs you in with a
+one-time PIN sent to your email; the Worker checks Access's signed token
+again on every admin request. Without the settings below the admin API
+answers 503 and everything else keeps working.
+
+### D1 databases (once)
+
+Workers & Pages → **D1 SQL database** → **Create**: `lunchrad-staging` and
+`lunchrad` (location Western Europe). Put their **Database IDs** in
+`worker/wrangler.jsonc` (`env.staging` / `env.production` → `d1_databases`).
+They are not secret. The deploy workflows apply `worker/migrations/` before
+every deploy; the first migration creates the default list "Kantoor" with the
+restaurants from before M5.
+
+Add **Account → D1 → Edit** to the CI API token (My Profile → API Tokens).
+
+### Cloudflare Access (once per environment)
+
+1. Zero Trust → choose a team name (your team domain becomes
+   `<team>.cloudflareaccess.com`), Free plan.
+2. Access → Applications → **Add an application** → **Self-hosted**:
+   - Name `Lunchrad beheer (staging)`, session duration 24 hours
+   - Domain: the Worker's hostname, path `admin` (covers `/admin` and `/admin/api/*`)
+   - Login method: **One-time PIN**
+   - Policy: **Allow**, Include → **Emails** → your address only
+3. Open the application and copy the **Application Audience (AUD) Tag**.
+4. Worker → Settings → Variables and Secrets (type Secret):
+
+| Name                 | Value                                                   |
+| -------------------- | ------------------------------------------------------- |
+| `ACCESS_TEAM_DOMAIN` | `<team>.cloudflareaccess.com`                           |
+| `ACCESS_AUD`         | The AUD tag (64 characters)                             |
+| `ADMIN_EMAILS`       | Your email address; more than one: separate with commas |
+
+Repeat for production with its own Access application (`Lunchrad beheer`).
+Check: `/admin` in a private window must show Cloudflare's login page, not
+Lunchrad. The email account you log in with needs strong 2FA: whoever
+controls it can get the one-time PIN.
+
+### Team key from the admin panel
+
+**Teamcode → Nieuwe teamcode maken** creates a strong key, shows it once and
+stores only an HMAC of it. From then on the `TEAM_KEY` secret is ignored.
+Every device has to enter the new key (within 30 seconds everywhere); open
+rooms keep running.
+
+## 6. Coming in later milestones
+
+| Milestone | What you will need to do                                                                 |
+| --------- | ---------------------------------------------------------------------------------------- |
+| M7        | Run the full ZAP scan and the restore test of D1; approve the final security assessment. |
