@@ -34,13 +34,23 @@ export class Feedback {
     const next = !this.enabled();
     this.enabled.set(next);
     this.store.saveSoundOn(next);
-    if (next) this.tone(880, 0.06, 0.08);
+    // Switching on gives a beep and a buzz right away: an instant check that both work.
+    if (next) {
+      this.tone(880, 0.06, 0.08);
+      this.vibrate(80);
+    }
   }
 
   /** The lever: a low thunk and a short buzz. */
   lever(): void {
     this.tone(110, 0.12, 0.25, 'triangle');
-    this.vibrate(25);
+    this.vibrate(60);
+  }
+
+  /** The dragged lever passing the point where it will pull. */
+  notch(): void {
+    this.tone(320, 0.04, 0.12, 'square');
+    this.vibrate(30);
   }
 
   /** One row passing the window. Limited so a fast reel does not turn into a buzz. */
@@ -55,13 +65,13 @@ export class Feedback {
   landed(): void {
     this.tone(659, 0.12, 0.18);
     this.tone(988, 0.25, 0.18, 'sine', 0.1);
-    this.vibrate([30, 40, 30]);
+    this.vibrate([80, 60, 120]);
   }
 
   /** Final result: a short rising fanfare. */
   celebrate(): void {
     [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.18, 0.16, 'triangle', i * 0.11));
-    this.vibrate([40, 60, 40, 60, 120]);
+    this.vibrate([100, 80, 100, 80, 250]);
   }
 
   private audio(): AudioContext | null {

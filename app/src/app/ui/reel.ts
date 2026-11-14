@@ -14,6 +14,8 @@ import type { SpinView } from '@lunchrad/shared';
 import { Feedback } from '../core/feedback';
 import { nl } from '../i18n/nl';
 
+/** Dragging the knob this far down (of the full travel) pulls the lever. */
+const PULL_THRESHOLD = 0.6;
 const ROW_HEIGHT = 64;
 const VISIBLE = 5;
 /** The drum's radius: rows curve away from the window like on a real drum. */
@@ -67,13 +69,21 @@ function easeOutQuart(t: number): number {
           type="button"
           class="lever"
           [class.pulled]="pulled()"
+          [class.dragging]="drag() !== null"
           [disabled]="!canPull()"
           [attr.aria-label]="t.lever"
           [attr.aria-describedby]="canPull() ? null : 'lever-why'"
-          (click)="pull()"
+          (click)="click()"
+          (pointerdown)="dragStart($event)"
+          (pointermove)="dragMove($event)"
+          (pointerup)="dragEnd($event)"
+          (pointercancel)="dragCancel()"
         >
           <span class="shaft"></span>
-          <span class="knob"></span>
+          <span
+            class="knob"
+            [style.top]="drag() === null ? null : 'calc(0.4rem + (100% - 3.8rem) * ' + drag() + ')'"
+          ></span>
         </button>
       </div>
     </div>
@@ -168,6 +178,16 @@ function easeOutQuart(t: number): number {
       background: var(--surface);
       box-shadow: 0 4px 0 var(--ink);
       cursor: grab;
+      /* The finger drags the knob; the page must not scroll instead. */
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .lever.dragging {
+      cursor: grabbing;
+    }
+    .lever.dragging .knob {
+      transition: none;
     }
     .shaft {
       position: absolute;
@@ -278,6 +298,56 @@ export class Reel {
       untracked(() => this.animate(spin));
     });
     inject(DestroyRef).onDestroy(() => cancelAnimationFrame(this.frame));
+  }
+
+  /** How far the knob is dragged down, 0 to 1; null while not dragging. */
+  protected readonly drag = signal<number | null>(null);
+  private dragFrom: { y: number; travel: number; id: number; moved: boolean } | null = null;
+  /** A drag ends with a click event too; that one must not pull a second time. */
+  private ignoreClick = false;
+
+  protected dragStart(event: PointerEvent): void {
+    if (!this.canPull() || event.button !== 0) return;
+    const lever = event.currentTarget as HTMLElement;
+    // The knob (3rem plus border) travels from the top to the bottom of the lever.
+    const travel = Math.max(1, lever.getBoundingClientRect().height - 3.8 * 16);
+    this.dragFrom = { y: event.clientY, travel, id: event.pointerId, moved: false };
+    lever.setPointerCapture(event.pointerId);
+  }
+
+  protected dragMove(event: PointerEvent): void {
+    const from = this.dragFrom;
+    if (!from || event.pointerId !== from.id) return;
+    const dy = event.clientY - from.y;
+    if (!from.moved && Math.abs(dy) < 6) return;
+    from.moved = true;
+    const fraction = Math.min(1, Math.max(0, dy / from.travel));
+    const before = this.drag() ?? 0;
+    this.drag.set(fraction);
+    // A small click when the lever passes the point of no return.
+    if (before < PULL_THRESHOLD && fraction >= PULL_THRESHOLD) this.feedback.notch();
+  }
+
+  protected dragEnd(event: PointerEvent): void {
+    const from = this.dragFrom;
+    if (!from || event.pointerId !== from.id) return;
+    this.dragFrom = null;
+    if (!from.moved) return; // A tap: the click handler pulls.
+    this.ignoreClick = true;
+    setTimeout(() => (this.ignoreClick = false), 0);
+    const fraction = this.drag() ?? 0;
+    this.drag.set(null);
+    if (fraction >= PULL_THRESHOLD) this.pull();
+  }
+
+  protected dragCancel(): void {
+    this.dragFrom = null;
+    this.drag.set(null);
+  }
+
+  protected click(): void {
+    if (this.ignoreClick) return;
+    this.pull();
   }
 
   protected pull(): void {
