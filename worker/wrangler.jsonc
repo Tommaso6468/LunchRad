@@ -61,7 +61,7 @@
         {
           "binding": "DB",
           "database_name": "lunchrad-staging",
-          "database_id": "STAGING_D1_ID",
+          "database_id": "ac3884dd-baf0-439a-a575-fcea68cf8fab",
           "migrations_dir": "migrations",
         },
       ],
@@ -102,7 +102,7 @@
         {
           "binding": "DB",
           "database_name": "lunchrad",
-          "database_id": "PRODUCTION_D1_ID",
+          "database_id": "ff09daf3-01ab-4fe7-b79d-fbde2e9457a7",
           "migrations_dir": "migrations",
         },
       ],
