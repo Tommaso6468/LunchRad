@@ -4,6 +4,7 @@ import {
   ElementRef,
   computed,
   effect,
+  inject,
   input,
   output,
   signal,
@@ -11,6 +12,8 @@ import {
   viewChild,
 } from '@angular/core';
 import { LIMITS, type RoomState } from '@lunchrad/shared';
+import { confettiBurst } from '../core/confetti';
+import { Feedback } from '../core/feedback';
 import { nl } from '../i18n/nl';
 import { Reel } from './reel';
 import { VotePanel } from './vote-panel';
@@ -40,7 +43,7 @@ import { VotePanel } from './vote-panel';
             [canPull]="canPull()"
             [leverHint]="leverHint()"
             (leverPulled)="pull.emit()"
-            (finished)="landed.set($event)"
+            (finished)="onLanded($event)"
           />
         }
         @if (state().phase === 'lobby' && isHost() && canPull()) {
@@ -99,6 +102,11 @@ export class SpinOverlay {
   protected readonly landed = signal<string | null>(null);
   private readonly resultCard = viewChild<ElementRef<HTMLElement>>('resultCard');
   private shownSpin = 0;
+  private readonly feedback = inject(Feedback);
+  /** Spin number already celebrated, so a snapshot or reconnect never repeats it. */
+  private celebrated = 0;
+  /** Only celebrate results this page saw happen, not ones it loaded later. */
+  private sawUnfinished = false;
 
   protected readonly names = computed(
     () => new Map(this.state().restaurants.map((r) => [r.id, r.name] as const)),
@@ -141,6 +149,29 @@ export class SpinOverlay {
     const card = this.resultCard()?.nativeElement;
     if (!card) return;
     requestAnimationFrame(() => card.scrollIntoView({ block: 'nearest' }));
+  });
+
+  protected onLanded(id: string): void {
+    const fresh = this.landed() !== id;
+    this.landed.set(id);
+    if (fresh && this.state().phase !== 'result') this.feedback.landed();
+  }
+
+  /** The final result: fanfare and confetti, once per spin, after this phone's reel stopped. */
+  private readonly celebrate = effect(() => {
+    const state = this.state();
+    if (state.phase !== 'result') {
+      this.sawUnfinished = true;
+      return;
+    }
+    const spin = state.spin;
+    const winner = this.winner();
+    if (!spin || !winner || !this.sawUnfinished || this.celebrated === spin.number) return;
+    this.celebrated = spin.number;
+    untracked(() => {
+      this.feedback.celebrate();
+      confettiBurst();
+    });
   });
 
   open(): void {

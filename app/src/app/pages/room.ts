@@ -20,6 +20,7 @@ import {
 import { Api } from '../core/api';
 import { RoomConnection } from '../core/room-connection';
 import { DeviceStore } from '../core/storage';
+import { Feedback } from '../core/feedback';
 import { Toasts } from '../core/toasts';
 import { nl } from '../i18n/nl';
 import { bindInput, errorText } from '../ui/forms';
@@ -61,10 +62,19 @@ import { TeamKeyForm } from './team-key-form';
         </section>
       } @else {
         <header class="room-head">
+          <h1 class="visually-hidden">{{ t.room.heading(validCode) }}</h1>
           <app-room-code [code]="validCode" [label]="t.room.codeLabel" size="small" />
           <div class="head-actions">
             <button type="button" class="secondary small" (click)="share(validCode)">
               {{ t.room.share }}
+            </button>
+            <button
+              type="button"
+              class="secondary small"
+              [attr.aria-pressed]="feedback.enabled()"
+              (click)="feedback.toggle()"
+            >
+              {{ t.room.sound }}
             </button>
             <button
               type="button"
@@ -229,6 +239,7 @@ export class Room {
   private readonly api = inject(Api);
   private readonly store = inject(DeviceStore);
   private readonly toasts = inject(Toasts);
+  protected readonly feedback = inject(Feedback);
 
   protected readonly t = nl;
   protected readonly bind = bindInput;

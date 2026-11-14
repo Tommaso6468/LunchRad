@@ -11,6 +11,7 @@ import {
   untracked,
 } from '@angular/core';
 import type { SpinView } from '@lunchrad/shared';
+import { Feedback } from '../core/feedback';
 import { nl } from '../i18n/nl';
 
 const ROW_HEIGHT = 64;
@@ -225,6 +226,7 @@ export class Reel {
   readonly finished = output<string>();
 
   protected readonly t = nl.reel;
+  private readonly feedback = inject(Feedback);
   protected readonly pulled = signal(false);
   protected readonly announcement = signal('');
 
@@ -281,6 +283,7 @@ export class Reel {
   protected pull(): void {
     if (!this.canPull()) return;
     this.pulled.set(true);
+    this.feedback.lever();
     setTimeout(() => this.pulled.set(false), 450);
     this.leverPulled.emit();
   }
@@ -312,9 +315,15 @@ export class Reel {
     }
     this.announcement.set(nl.reel.spinning);
     const startedAt = performance.now() - elapsed;
+    let lastRow = Math.round(start);
     const step = (now: number) => {
       const t = Math.min(1, (now - startedAt) / duration);
-      this.position.set(start + (target - start) * easeOutQuart(t));
+      const position = start + (target - start) * easeOutQuart(t);
+      this.position.set(position);
+      if (Math.round(position) !== lastRow) {
+        lastRow = Math.round(position);
+        this.feedback.tick();
+      }
       if (t < 1) this.frame = requestAnimationFrame(step);
       else done();
     };

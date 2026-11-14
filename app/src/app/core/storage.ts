@@ -9,6 +9,7 @@ import { LIMITS, type RoomCredentials } from '@lunchrad/shared';
 const KEYS = {
   team: 'lunchrad.team',
   name: 'lunchrad.name',
+  sound: 'lunchrad.sound',
   roomPrefix: 'lunchrad.room.',
 } as const;
 
@@ -75,6 +76,15 @@ export class DeviceStore {
 
   saveName(name: string): void {
     write(KEYS.name, name);
+  }
+
+  /** Sound and vibration; on unless switched off on this device. */
+  soundOn(): boolean {
+    return read<boolean>(KEYS.sound) !== false;
+  }
+
+  saveSoundOn(on: boolean): void {
+    write(KEYS.sound, on);
   }
 
   room(code: string): RoomCredentials | null {

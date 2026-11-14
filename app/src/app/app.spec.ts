@@ -58,6 +58,12 @@ describe('RoomCode', () => {
     const el = fixture.nativeElement as HTMLElement;
     const digits = [...el.querySelectorAll('.digit')].map((s) => s.textContent);
     expect(digits).toEqual(['7', '4', '0']);
-    expect(el.querySelector('.code')?.getAttribute('aria-label')).toBe('K 7 Q 4 M 0');
+    // Screen readers get the spaced-out code as text; the big letters are hidden from them.
+    expect(el.querySelector('.code .visually-hidden')?.textContent).toBe('K 7 Q 4 M 0');
+    expect(
+      [...el.querySelectorAll('.code > span:not(.visually-hidden)')].every(
+        (s) => s.getAttribute('aria-hidden') === 'true',
+      ),
+    ).toBe(true);
   });
 });

@@ -10,6 +10,12 @@ export const nl = {
   appName: 'Lunchrad',
   tagline: 'Waar gaan we lunchen?',
 
+  app: {
+    offline: 'Geen internet. Lunchrad werkt weer zodra je verbinding hebt.',
+    updateReady: 'Er is een nieuwe versie van Lunchrad.',
+    reload: 'Vernieuwen',
+  },
+
   teamKey: {
     title: 'Teamcode',
     intro:
@@ -46,8 +52,10 @@ export const nl = {
 
   room: {
     codeLabel: 'Kamercode',
+    heading: (code: string) => `Kamer ${code}`,
     share: 'Delen',
     copied: 'Link gekopieerd',
+    sound: 'Geluid',
     showQr: 'QR-code tonen',
     hideQr: 'QR-code verbergen',
     qrAlt: (code: string) => `QR-code om mee te doen met kamer ${code}`,

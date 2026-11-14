@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { admin } from './admin.ts';
 import { api } from './api.ts';
 import type { Env } from './env.ts';
-import { generateNonce, shellCsp, withSecurityHeaders } from './security.ts';
+import { SW_CSP, generateNonce, shellCsp, withSecurityHeaders } from './security.ts';
 
 export { Room } from './room.ts';
 export type { Env } from './env.ts';
@@ -19,6 +19,24 @@ const textError = (status: 404 | 405, message: string): Response =>
 app.route('/api', api);
 // Behind Cloudflare Access; every request is verified again in admin.ts.
 app.route('/admin/api', admin);
+
+/**
+ * The service worker script. Served through the Worker so its headers are
+ * exact: never cached by the browser's HTTP cache (updates are noticed at
+ * once), and a CSP of its own that lets it fetch from this origin only.
+ */
+app.get('/sw.js', async (c) => {
+  const script = await c.env.ASSETS.fetch(new Request(new URL('/sw.js', c.req.url)));
+  if (!script.ok) return textError(404, 'Niet gevonden');
+  const response = new Response(script.body, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/javascript; charset=utf-8',
+      'Cache-Control': 'no-cache',
+    },
+  });
+  return withSecurityHeaders(response, SW_CSP);
+});
 
 /**
  * Serves the Angular app shell for every non-file path ("/", "/r/ABC123", ...),
