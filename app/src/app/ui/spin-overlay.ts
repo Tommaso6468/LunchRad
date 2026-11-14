@@ -151,10 +151,27 @@ export class SpinOverlay {
     requestAnimationFrame(() => card.scrollIntoView({ block: 'nearest' }));
   });
 
+  /** Spin numbers this page saw spinning (not ones it only loaded afterwards). */
+  private watched = 0;
+  /** Spin number that already got its confetti. */
+  private burst = 0;
+  /** Spin number that had a respin vote. */
+  private votedOn = 0;
+  private readonly watchSpins = effect(() => {
+    const state = this.state();
+    if (state.phase === 'spinning' && state.spin) this.watched = state.spin.number;
+    if (state.phase === 'voting' && state.spin) this.votedOn = state.spin.number;
+  });
+
   protected onLanded(id: string): void {
     const fresh = this.landed() !== id;
     this.landed.set(id);
-    if (fresh && this.state().phase !== 'result') this.feedback.landed();
+    const spin = this.state().spin;
+    if (!fresh || !spin || spin.number !== this.watched) return;
+    // Confetti the moment the result card appears, on every spin this phone watched.
+    this.burst = spin.number;
+    confettiBurst();
+    if (this.state().phase !== 'result') this.feedback.landed();
   }
 
   /** The final result: fanfare and confetti, once per spin, after this phone's reel stopped. */
@@ -170,7 +187,11 @@ export class SpinOverlay {
     this.celebrated = spin.number;
     untracked(() => {
       this.feedback.celebrate();
-      confettiBurst();
+      // After a vote the decision gets its own burst; without one, the landing already had it.
+      if (this.burst !== spin.number || this.votedOn === spin.number) {
+        this.burst = spin.number;
+        confettiBurst();
+      }
     });
   });
 
