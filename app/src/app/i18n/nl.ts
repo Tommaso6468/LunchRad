@@ -234,6 +234,7 @@ export const nl = {
 
   admin: {
     title: 'Beheer',
+    entry: 'Beheer (alleen voor beheerders)',
     signedInAs: (email: string) => `Ingelogd als ${email}`,
     toApp: 'Naar Lunchrad',
     tabsLabel: 'Beheer',
