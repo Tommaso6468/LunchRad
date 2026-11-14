@@ -18,6 +18,12 @@ export const LIMITS = {
   minRestaurantsToSpin: 2,
   /** How long the reel animation runs, the same on every phone. */
   spinDurationMs: 5000,
+  /** How long the respin vote stays open. */
+  voteDurationMs: 30_000,
+  /** At most this many respins per room. */
+  maxRespins: 3,
+  /** The room closes this long after the final result. */
+  closeAfterResultMs: 5 * 60_000,
   /** Maximum open sockets per room (a few tabs or devices per person). */
   maxSockets: 60,
   /** Hard cap on a room's lifetime. */
@@ -111,6 +117,7 @@ export const clientMessage = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('unboost') }),
   // No parameters on purpose: the client cannot influence the result.
   z.strictObject({ type: z.literal('start_spin') }),
+  z.strictObject({ type: z.literal('vote'), choice: z.enum(['yes', 'no']) }),
 ]);
 export type ClientMessage = z.infer<typeof clientMessage>;
 
@@ -145,8 +152,26 @@ export const roomState = z.strictObject({
   expiresAt: z.number(),
   participants: z.array(participantView).check(z.maxLength(LIMITS.maxParticipants)),
   restaurants: z.array(restaurantView).check(z.maxLength(LIMITS.maxRestaurants)),
-  /** lobby: building the list; spinning: reel running; result: winner known. */
-  phase: z.enum(['lobby', 'spinning', 'result']),
+  /**
+   * lobby: building the list; spinning: reel running; voting: respin vote
+   * open; result: final winner, the room closes at `closesAt`.
+   */
+  phase: z.enum(['lobby', 'spinning', 'voting', 'result']),
+  /** Respins still allowed in this room. */
+  respinsLeft: z.number(),
+  vote: z.nullable(
+    z.strictObject({
+      /** Participants who may vote: everyone connected when the vote opened. */
+      eligible: z.array(participantId).check(z.maxLength(LIMITS.maxParticipants)),
+      yes: z.array(participantId).check(z.maxLength(LIMITS.maxParticipants)),
+      no: z.array(participantId).check(z.maxLength(LIMITS.maxParticipants)),
+      durationMs: z.number(),
+      /** Time left when the server sent this state. */
+      remainingMs: z.number(),
+    }),
+  ),
+  /** When the room closes after the final result; null before that. */
+  closesInMs: z.nullable(z.number()),
   spin: z.nullable(
     z.strictObject({
       /** Increases with every spin, so clients notice a new one. */
@@ -164,10 +189,16 @@ export const roomState = z.strictObject({
   ),
 });
 export type SpinView = NonNullable<RoomState['spin']>;
+export type VoteView = NonNullable<RoomState['vote']>;
+
+/** A respin needs strictly more than half of the eligible voters. */
+export function respinNeeds(eligible: number): number {
+  return Math.floor(eligible / 2) + 1;
+}
 export type RoomPhase = RoomState['phase'];
 export type RoomState = z.infer<typeof roomState>;
 
-export const CLOSE_REASONS = ['ended', 'expired', 'empty'] as const;
+export const CLOSE_REASONS = ['ended', 'expired', 'empty', 'finished'] as const;
 export type CloseReason = (typeof CLOSE_REASONS)[number];
 
 export const SOCKET_ERRORS = [
@@ -186,10 +217,20 @@ export const SOCKET_ERRORS = [
   'not_allowed',
   'locked',
   'not_enough_restaurants',
+  'no_vote',
+  'not_eligible',
 ] as const;
 export type SocketError = (typeof SOCKET_ERRORS)[number];
 
 export const roomEvent = z.discriminatedUnion('type', [
+  z.strictObject({
+    type: z.literal('vote_ended'),
+    respin: z.boolean(),
+    yes: z.number(),
+    eligible: z.number(),
+    /** The restaurant taken off the wheel for the respin. */
+    removedName: z.nullable(z.string()),
+  }),
   z.strictObject({ type: z.literal('host_changed'), hostId: participantId, auto: z.boolean() }),
   z.strictObject({ type: z.literal('kicked'), name: z.string() }),
   z.strictObject({

@@ -133,8 +133,29 @@ export const nl = {
     spinning: 'Het rad draait…',
     landed: (name: string) => `Het rad koos ${name}`,
     resultTitle: 'We gaan naar',
+    candidateTitle: 'Het rad koos',
+    openVote: 'Stemmen',
+    finalBar: 'Dit is de keuze.',
+    final: 'Dit is de keuze. De kamer sluit over 5 minuten.',
     maps: 'Route in Google Maps',
     hostHint: 'Trek aan de hendel. Boosts en de lijst gaan dan op slot.',
+  },
+
+  vote: {
+    question: 'Opnieuw draaien?',
+    barText: 'Stem: opnieuw draaien of niet?',
+    timeLeftLabel: 'Tijd om te stemmen',
+    secondsLeft: (s: number) => (s === 1 ? 'Nog 1 seconde' : `Nog ${s} seconden`),
+    tally: (yes: number, needs: number) => `${yes} van de ${needs} ja-stemmen die nodig zijn`,
+    yes: 'Ja, opnieuw',
+    no: 'Nee, dit wordt het',
+    rules: (left: number) =>
+      `Meer dan de helft ja: dit restaurant gaat van het rad en het draait opnieuw. Niet stemmen telt als nee. ${
+        left === 1
+          ? 'Dit is de laatste keer dat opnieuw draaien kan.'
+          : `Nog ${left} keer mogelijk.`
+      }`,
+    notEligible: 'Je was er niet bij toen het rad stopte, dus je stemt deze keer niet mee.',
   },
 
   toasts: {
@@ -150,6 +171,11 @@ export const nl = {
     manyAdded: (count: number) => `${count} restaurants toegevoegd`,
     removed: (what: string) => `${what} is van het rad gehaald`,
     removedByHost: (what: string) => `De host heeft ${what} van het rad gehaald`,
+    respin: (what: string) => `Opnieuw! ${what} is van het rad gehaald`,
+    noRespin: (yes: number, eligible: number) =>
+      yes === 0
+        ? 'Niemand wilde opnieuw draaien: de keuze blijft staan'
+        : `${yes} van de ${eligible} wilden opnieuw draaien: niet genoeg, de keuze blijft staan`,
     yourBoostGone: (what: string) => `Je boost is weg: ${what} is van het rad gehaald`,
   },
 
@@ -159,6 +185,7 @@ export const nl = {
       ended: 'De host heeft de kamer gesloten.',
       expired: 'De kamer is na 30 minuten automatisch gesloten.',
       empty: 'De kamer is gesloten omdat er niemand meer was.',
+      finished: 'Jullie hebben gekozen. De kamer is 5 minuten na de uitslag gesloten.',
       kicked: 'De host heeft je uit de kamer verwijderd.',
       left: 'Je hebt de kamer verlaten.',
       gone: 'Deze kamer bestaat niet meer.',
@@ -199,5 +226,7 @@ export const nl = {
     not_allowed: 'Alleen de host of wie het heeft toegevoegd kan dit weghalen.',
     locked: 'Het rad draait of heeft gekozen: de lijst en boosts zitten op slot.',
     not_enough_restaurants: 'Er moeten minstens 2 restaurants op het rad staan.',
+    no_vote: 'Er loopt nu geen stemming.',
+    not_eligible: 'Je stemt deze keer niet mee: je was er niet bij toen het rad stopte.',
   } satisfies Record<SocketError, string>,
 } as const;

@@ -13,6 +13,7 @@ import {
 import { LIMITS, type RoomState } from '@lunchrad/shared';
 import { nl } from '../i18n/nl';
 import { Reel } from './reel';
+import { VotePanel } from './vote-panel';
 
 /**
  * Full-screen reel. Opens by itself on every phone when a spin starts, so
@@ -23,7 +24,7 @@ import { Reel } from './reel';
 @Component({
   selector: 'app-spin-overlay',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Reel],
+  imports: [Reel, VotePanel],
   template: `
     <dialog #dialog class="reel-dialog" aria-labelledby="reel-title" (close)="isOpen.set(false)">
       <div class="inner">
@@ -46,8 +47,10 @@ import { Reel } from './reel';
           <p class="hint">{{ t.hostHint }}</p>
         }
         @if (winner(); as w) {
-          <section class="result-card" aria-labelledby="result-title">
-            <p id="result-title" class="muted">{{ t.resultTitle }}</p>
+          <section #resultCard class="result-card" aria-labelledby="result-title">
+            <p id="result-title" class="muted">
+              {{ state().phase === 'result' ? t.resultTitle : t.candidateTitle }}
+            </p>
             <p class="winner">{{ w.name }}</p>
             @if (w.categories.length) {
               <ul class="tags">
@@ -66,6 +69,16 @@ import { Reel } from './reel';
                 {{ t.maps }}
               </a>
             }
+            @if (state().vote; as v) {
+              <app-vote-panel
+                [vote]="v"
+                [you]="you()"
+                [respinsLeft]="state().respinsLeft"
+                (voted)="vote.emit($event)"
+              />
+            } @else if (state().phase === 'result') {
+              <p class="hint">{{ t.final }}</p>
+            }
           </section>
         }
       </div>
@@ -75,13 +88,16 @@ import { Reel } from './reel';
 export class SpinOverlay {
   readonly state = input.required<RoomState>();
   readonly isHost = input.required<boolean>();
+  readonly you = input.required<string | null>();
   readonly pull = output();
+  readonly vote = output<'yes' | 'no'>();
 
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
   protected readonly t = nl.reel;
   protected readonly isOpen = signal(false);
   /** Restaurant id this phone's reel stopped on. */
   protected readonly landed = signal<string | null>(null);
+  private readonly resultCard = viewChild<ElementRef<HTMLElement>>('resultCard');
   private shownSpin = 0;
 
   protected readonly names = computed(
@@ -119,6 +135,13 @@ export class SpinOverlay {
       });
     });
   }
+
+  /** On small phones the vote sits below the reel: bring it into view once the reel stops. */
+  private readonly revealResult = effect(() => {
+    const card = this.resultCard()?.nativeElement;
+    if (!card) return;
+    requestAnimationFrame(() => card.scrollIntoView({ block: 'nearest' }));
+  });
 
   open(): void {
     const el = this.dialog().nativeElement;

@@ -107,18 +107,18 @@ describe('during and after the spin', () => {
     expect((await hostSocket.next('error')).error).toBe('locked');
   });
 
-  it('moves to the result when the animation time is over, not before', async () => {
+  it('opens the respin vote when the animation time is over, not before', async () => {
     const { host, hostSocket, tomSocket } = await room();
     hostSocket.send({ type: 'start_spin' });
     const spinning = await tomSocket.stateWhere((s) => s.phase === 'spinning');
 
     await advance(host.code, LIMITS.spinDurationMs - 500);
-    expect(tomSocket.messages.some((m) => m.type === 'state' && m.state.phase === 'result')).toBe(
+    expect(tomSocket.messages.some((m) => m.type === 'state' && m.state.phase === 'voting')).toBe(
       false,
     );
 
     await advance(host.code, 1000);
-    const result = await tomSocket.stateWhere((s) => s.phase === 'result');
+    const result = await tomSocket.stateWhere((s) => s.phase === 'voting');
     expect(result.spin?.winnerId).toBe(spinning.spin?.winnerId);
     expect(result.spin?.elapsedMs).toBe(LIMITS.spinDurationMs);
   });
