@@ -26,7 +26,7 @@
   --drum-edge: #b9d3c6;
   --ticket-glow: rgb(215 38 61 / 0.1);
 
-  --font-display: 'Bagel Fat One', 'Arial Rounded MT Bold', system-ui, sans-serif;
+  --font-display: 'Bagel Fat One', system-ui, sans-serif;
   --font-body: 'Atkinson Hyperlegible Next', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-code: 'IBM Plex Mono', ui-monospace, monospace;
 
