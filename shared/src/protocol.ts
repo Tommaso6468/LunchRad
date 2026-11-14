@@ -17,7 +17,7 @@ export const LIMITS = {
   /** A spin needs at least this many restaurants. */
   minRestaurantsToSpin: 2,
   /** How long the reel animation runs, the same on every phone. */
-  spinDurationMs: 5000,
+  spinDurationMs: 8000,
   /** How long the respin vote stays open. */
   voteDurationMs: 60_000,
   /** At most this many respins per room. */
