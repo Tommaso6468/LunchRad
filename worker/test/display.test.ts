@@ -111,7 +111,7 @@ describe('joining as a big screen', () => {
 
 describe('the big screen', () => {
   it('sees state and events, but every action is refused and changes nothing', async () => {
-    const { host, hostSocket, tomSocket, initial } = await room();
+    const { host, tomSocket, initial } = await room();
     const screen = await openDisplay(host.code, await displayToken(host.code));
     const target = initial.restaurants[0]?.id ?? '';
 
