@@ -50,6 +50,11 @@ app.on(['GET', 'HEAD'], '*', async (c) => {
   if (/\.[a-z0-9]+$/i.test(url.pathname) && url.pathname !== '/index.html') {
     return textError(404, 'Niet gevonden');
   }
+  // No app route starts with a dot: /.git, /.env, /._darcs and the like are 404,
+  // so scanners do not mistake the app shell for a hidden file.
+  if (url.pathname.split('/').some((part) => part.startsWith('.') || part.startsWith('%2e'))) {
+    return textError(404, 'Niet gevonden');
+  }
 
   const shell = await c.env.ASSETS.fetch(new Request(new URL('/', url)));
   if (!shell.ok) {

@@ -14,6 +14,8 @@ export const BASELINE_HEADERS: Readonly<Record<string, string>> = {
     'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), browsing-topics=()',
   'Cross-Origin-Opener-Policy': 'same-origin',
   'Cross-Origin-Resource-Policy': 'same-origin',
+  // An internal team tool: keep it out of search engines (less to discover).
+  'X-Robots-Tag': 'noindex, nofollow, noarchive',
 };
 
 /** CSP for anything that is not the HTML app shell (JSON, errors). */

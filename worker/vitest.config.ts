@@ -32,6 +32,7 @@ export default defineConfig({
         durableObjects: { ROOMS: { className: 'Room', useSQLite: true } },
         ratelimits: {
           SESSION_LIMITER: { namespace_id: '1', simple: { limit: 10, period: 60 } },
+          SESSION_GLOBAL_LIMITER: { namespace_id: '5', simple: { limit: 1000, period: 60 } },
           CREATE_LIMITER: { namespace_id: '2', simple: { limit: 5, period: 60 } },
           JOIN_LIMITER: { namespace_id: '3', simple: { limit: 60, period: 60 } },
           WS_LIMITER: { namespace_id: '4', simple: { limit: 120, period: 60 } },

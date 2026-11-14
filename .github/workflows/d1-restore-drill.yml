@@ -1,0 +1,74 @@
+name: D1 restore drill (staging)
+
+# Manual only. Proves that D1 Time Travel can bring the staging database back
+# to an earlier moment: take a bookmark, make a marker change, restore to the
+# bookmark, check the marker is gone and the data is as before.
+# Staging only; production restores follow docs/runbook.md by hand.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  drill:
+    name: Restore drill
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: staging
+    defaults:
+      run:
+        working-directory: worker
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_SEND_METRICS: 'false'
+      DB: lunchrad-staging
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+        working-directory: .
+      - name: Count rows before
+        id: before
+        run: |
+          rows=$(npx wrangler d1 execute "$DB" --env staging --remote --json \
+            --command "SELECT (SELECT count(*) FROM restaurant) + (SELECT count(*) FROM preset) + (SELECT count(*) FROM admin_audit) AS n" \
+            | jq -r '.[0].results[0].n')
+          echo "rows=$rows" >> "$GITHUB_OUTPUT"
+          echo "Rows before: $rows"
+      - name: Take a bookmark
+        id: bookmark
+        run: |
+          bookmark=$(npx wrangler d1 time-travel info "$DB" --env staging --json | jq -r '.bookmark')
+          test -n "$bookmark" && test "$bookmark" != "null"
+          echo "bookmark=$bookmark" >> "$GITHUB_OUTPUT"
+          echo "Bookmark: $bookmark"
+      - name: Make a marker change
+        run: |
+          npx wrangler d1 execute "$DB" --env staging --remote \
+            --command "CREATE TABLE restore_drill (at INTEGER); INSERT INTO restore_drill VALUES (unixepoch());"
+      - name: Restore to the bookmark
+        run: npx wrangler d1 time-travel restore "$DB" --env staging --bookmark "${{ steps.bookmark.outputs.bookmark }}"
+      - name: Check the marker is gone and the data is back
+        run: |
+          marker=$(npx wrangler d1 execute "$DB" --env staging --remote --json \
+            --command "SELECT count(*) AS n FROM sqlite_master WHERE name = 'restore_drill'" \
+            | jq -r '.[0].results[0].n')
+          rows=$(npx wrangler d1 execute "$DB" --env staging --remote --json \
+            --command "SELECT (SELECT count(*) FROM restaurant) + (SELECT count(*) FROM preset) + (SELECT count(*) FROM admin_audit) AS n" \
+            | jq -r '.[0].results[0].n')
+          echo "Marker tables: $marker, rows after: $rows (before: ${{ steps.before.outputs.rows }})"
+          test "$marker" = "0"
+          test "$rows" = "${{ steps.before.outputs.rows }}"
+          echo "Restore drill passed."

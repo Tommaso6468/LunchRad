@@ -24,6 +24,8 @@ export interface Env {
 
   // Workers rate limiting bindings (approximate, per Cloudflare location).
   SESSION_LIMITER: RateLimit;
+  /** Team-key attempts from all IPs together. */
+  SESSION_GLOBAL_LIMITER: RateLimit;
   CREATE_LIMITER: RateLimit;
   JOIN_LIMITER: RateLimit;
   WS_LIMITER: RateLimit;

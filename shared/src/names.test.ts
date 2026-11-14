@@ -22,6 +22,14 @@ describe('normalizeName', () => {
     expect(normalizeName('a'.repeat(21))).toBeNull();
   });
 
+  it('rejects lookalike names that mix Latin with Cyrillic or Greek letters', () => {
+    expect(normalizeName('\u0422\u043em')).toBeNull(); // Cyrillic Т and о with a Latin m: "Tom"
+    expect(normalizeName('S\u0430nne')).toBeNull(); // Cyrillic а
+    expect(normalizeName('\u039fla')).toBeNull(); // Greek Ο
+    expect(normalizeName('\u0422\u0430\u043d\u044f')).toBe('\u0422\u0430\u043d\u044f'); // Таня
+    expect(normalizeName('Sanne 2')).toBe('Sanne 2');
+  });
+
   it('rejects markup, control, zero-width and bidi characters', () => {
     for (const bad of [
       '<script>',

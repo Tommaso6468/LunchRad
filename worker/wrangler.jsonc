@@ -38,13 +38,24 @@
   "durable_objects": {
     "bindings": [{ "name": "ROOMS", "class_name": "Room" }],
   },
-  // Approximate, per-location limits. Counters are shared by namespace_id, so
-  // every environment gets its own ids.
+  // Approximate, per-location limits, per client IP. A whole office shares one
+  // IP, so they are sized for ~20 colleagues at once (M8): entering the team key
+  // 20/min, creating rooms 5/min, joining 60/min, WebSocket connects 300/min
+  // (phones reconnect after sleep or a Wi-Fi switch). Hits are logged as
+  // "Rate limited" with the route, never the IP. SESSION_GLOBAL_LIMITER caps
+  // team-key attempts from all IPs together (30/min per location), so a
+  // botnet cannot guess in parallel. Counters are shared by
+  // namespace_id, so every environment gets its own ids.
   "ratelimits": [
-    { "name": "SESSION_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
+    { "name": "SESSION_LIMITER", "namespace_id": "1001", "simple": { "limit": 20, "period": 60 } },
     { "name": "CREATE_LIMITER", "namespace_id": "1002", "simple": { "limit": 5, "period": 60 } },
     { "name": "JOIN_LIMITER", "namespace_id": "1003", "simple": { "limit": 60, "period": 60 } },
-    { "name": "WS_LIMITER", "namespace_id": "1004", "simple": { "limit": 120, "period": 60 } },
+    { "name": "WS_LIMITER", "namespace_id": "1004", "simple": { "limit": 300, "period": 60 } },
+    {
+      "name": "SESSION_GLOBAL_LIMITER",
+      "namespace_id": "1005",
+      "simple": { "limit": 30, "period": 60 },
+    },
   ],
   "vars": {
     "ENVIRONMENT": "development",
@@ -72,7 +83,7 @@
         {
           "name": "SESSION_LIMITER",
           "namespace_id": "2001",
-          "simple": { "limit": 10, "period": 60 },
+          "simple": { "limit": 20, "period": 60 },
         },
         {
           "name": "CREATE_LIMITER",
@@ -87,7 +98,12 @@
         {
           "name": "WS_LIMITER",
           "namespace_id": "2004",
-          "simple": { "limit": 120, "period": 60 },
+          "simple": { "limit": 300, "period": 60 },
+        },
+        {
+          "name": "SESSION_GLOBAL_LIMITER",
+          "namespace_id": "2005",
+          "simple": { "limit": 30, "period": 60 },
         },
       ],
     },
@@ -113,7 +129,7 @@
         {
           "name": "SESSION_LIMITER",
           "namespace_id": "3001",
-          "simple": { "limit": 10, "period": 60 },
+          "simple": { "limit": 20, "period": 60 },
         },
         {
           "name": "CREATE_LIMITER",
@@ -128,7 +144,12 @@
         {
           "name": "WS_LIMITER",
           "namespace_id": "3004",
-          "simple": { "limit": 120, "period": 60 },
+          "simple": { "limit": 300, "period": 60 },
+        },
+        {
+          "name": "SESSION_GLOBAL_LIMITER",
+          "namespace_id": "3005",
+          "simple": { "limit": 30, "period": 60 },
         },
       ],
     },

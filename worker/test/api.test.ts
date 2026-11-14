@@ -296,3 +296,30 @@ describe('WebSocket team session', () => {
     res.webSocket?.close(1000);
   });
 });
+
+describe('team key guessing from many IPs', () => {
+  it('a global limit across all IPs stops attempts too', async () => {
+    const blocked = { limit: async () => ({ success: false }) } as unknown as RateLimit;
+    const res = await call(
+      '/api/session',
+      jsonInit({ teamKey: 'test-team-key' }),
+      makeEnv({ SESSION_GLOBAL_LIMITER: blocked }),
+    );
+    expect(res.status).toBe(429);
+  });
+});
+
+describe('read endpoints', () => {
+  it('are rate limited per IP', async () => {
+    const team = await teamToken();
+    const blocked = { limit: async () => ({ success: false }) } as unknown as RateLimit;
+    for (const path of ['/api/stats', '/api/presets']) {
+      const res = await call(
+        path,
+        { headers: { Authorization: `Bearer ${team}` } },
+        makeEnv({ JOIN_LIMITER: blocked }),
+      );
+      expect(res.status, path).toBe(429);
+    }
+  });
+});

@@ -6,6 +6,10 @@
  * zero-width and bidirectional-override characters (used to spoof names), and
  * HTML/markup characters. The app renders names as text only, so this is
  * defence in depth, not the XSS control itself.
+ *
+ * Names that mix Latin with Cyrillic or Greek letters are refused too: "Тоm"
+ * with a Cyrillic Т and о looks exactly like "Tom" (homoglyph impersonation).
+ * A name in one script only, like "Таня" or "Sanne", is fine.
  */
 export const NAME_MAX_LENGTH = 20;
 
@@ -21,7 +25,11 @@ export function normalizeName(input: string): string | null {
   if (length < 1 || length > NAME_MAX_LENGTH) {
     return null;
   }
-  return NAME_PATTERN.test(cleaned) ? cleaned : null;
+  if (!NAME_PATTERN.test(cleaned)) return null;
+  const scripts = [/\p{Script=Latin}/u, /\p{Script=Cyrillic}/u, /\p{Script=Greek}/u].filter((re) =>
+    re.test(cleaned),
+  );
+  return scripts.length > 1 ? null : cleaned;
 }
 
 /** Key used to enforce unique names per room, case-insensitively. */

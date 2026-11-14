@@ -1,0 +1,35 @@
+name: Security scan (staging)
+
+# Manual only: Actions → "Security scan (staging)" → Run workflow.
+# Runs OWASP ZAP's full scan (spider + active attacks) against the staging
+# Worker, through Cloudflare's real edge. Never point this at production.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-scan
+  cancel-in-progress: false
+
+jobs:
+  zap:
+    name: OWASP ZAP full scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment:
+      name: staging
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: ZAP full scan
+        uses: zaproxy/action-full-scan@41aee98ebc7cf2802c3beae4e7d4336413a21e43 # v0.9.0
+        with:
+          target: ${{ vars.STAGING_URL }}
+          rules_file_name: .zap/rules.tsv
+          # Results stay in the job artifact; no issues are opened.
+          allow_issue_writing: false
+          fail_action: true
+          cmd_options: '-a -j'
