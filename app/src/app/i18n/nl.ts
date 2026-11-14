@@ -277,7 +277,14 @@ export const nl = {
         'Iedereen vult de teamcode één keer in op een apparaat. Maak een nieuwe als iemand het team verlaat of als de code is uitgelekt.',
       fromSecret: 'De teamcode komt nu uit de instelling TEAM_KEY bij Cloudflare.',
       rotatedAt: (when: string, by: string) => `Laatst vernieuwd op ${when} door ${by}.`,
-      rotate: 'Nieuwe teamcode maken',
+      rotate: 'Willekeurige teamcode maken',
+      ownLabel: 'Eigen teamcode',
+      ownHint:
+        'Minstens 12 tekens, bijvoorbeeld een paar woorden: kroket fiets wolk zeven. Hoofdletters maken niet uit.',
+      setOwn: 'Deze teamcode instellen',
+      or: 'Of laat Lunchrad een sterke code kiezen:',
+      confirmOwn:
+        'Deze teamcode instellen? Alle apparaten moeten daarna de nieuwe code invullen. Open kamers lopen gewoon door.',
       confirmRotate:
         'Een nieuwe teamcode maken? Alle apparaten moeten daarna de nieuwe code invullen. Open kamers lopen gewoon door.',
       newKey: 'De nieuwe teamcode',
@@ -325,6 +332,8 @@ export const nl = {
       too_many_presets: 'Er kunnen maximaal 30 lijsten zijn.',
       too_many_restaurants: 'Er kunnen maximaal 30 restaurants in een lijst.',
       default_preset: 'De standaardlijst kan niet weg. Maak eerst een andere lijst standaard.',
+      weak_team_key:
+        'Te zwak: gebruik 12 tot 64 tekens met minstens 6 verschillende tekens, en niet alleen cijfers.',
       server_error: 'Er ging iets mis. Probeer het opnieuw.',
       network: 'Geen verbinding. Controleer je internet en probeer het opnieuw.',
       login: 'Je sessie voor het beheer is verlopen.',

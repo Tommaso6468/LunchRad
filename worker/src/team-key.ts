@@ -6,7 +6,7 @@
  * Every Worker instance caches what is in D1 for a short time, so a rotation
  * reaches all of them within TEAM_KEY_CACHE_MS.
  */
-import { ROOM_CODE_ALPHABET } from '@lunchrad/shared';
+import { ROOM_CODE_ALPHABET, normalizeTeamKey } from '@lunchrad/shared';
 import { base64url, hmac, safeEqual } from './crypto.ts';
 import { storedTeamKey, type StoredTeamKey } from './db.ts';
 import type { ConfiguredEnv } from './env.ts';
@@ -29,13 +29,8 @@ async function current(env: ConfiguredEnv): Promise<StoredTeamKey | null> {
   return value;
 }
 
-/** Keys made by the admin panel are lower case; phones like to capitalise. */
-function normalizeAdminKey(candidate: string): string {
-  return candidate.trim().toLowerCase();
-}
-
 export async function teamKeyCheckHash(env: ConfiguredEnv, key: string): Promise<string> {
-  return base64url(await hmac(env.SESSION_SECRET, `team-key-check:${normalizeAdminKey(key)}`));
+  return base64url(await hmac(env.SESSION_SECRET, `team-key-check:${normalizeTeamKey(key)}`));
 }
 
 export async function teamKeyMatches(env: ConfiguredEnv, candidate: string): Promise<boolean> {

@@ -181,8 +181,10 @@ controls it can get the one-time PIN.
 
 ### Team key from the admin panel
 
-**Teamcode → Nieuwe teamcode maken** creates a strong key, shows it once and
-stores only an HMAC of it. From then on the `TEAM_KEY` secret is ignored.
+**Teamcode** lets you type your own key (12–64 characters, at least 6
+different characters, not only digits; case and extra spaces are ignored) or
+**Willekeurige teamcode maken** for a generated one (about 100 bits). Only an
+HMAC of the key is stored; it lives in D1 and survives every deploy. From then on the `TEAM_KEY` secret is ignored.
 Every device has to enter the new key (within 30 seconds everywhere); open
 rooms keep running.
 
