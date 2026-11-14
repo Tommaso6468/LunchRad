@@ -700,3 +700,18 @@ app-status:has(.app-status:empty) {
   border-color: var(--bg);
   box-shadow: 0 3px 0 var(--bg);
 }
+
+.home-foot {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--space-2);
+}
+
+.admin-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 var(--space-2);
+  color: var(--muted);
+  font-size: 0.9rem;
+}

@@ -102,6 +102,11 @@ import { TeamKeyForm } from './team-key-form';
 
       <a routerLink="/statistieken" class="button secondary stats-link">{{ t.stats.link }}</a>
     }
+
+    <footer class="home-foot">
+      <!-- A real page load, not an in-app route: Cloudflare Access must see it to ask for the login. -->
+      <a href="/admin" class="admin-link">{{ t.admin.entry }}</a>
+    </footer>
   `,
 })
 export class Home {
