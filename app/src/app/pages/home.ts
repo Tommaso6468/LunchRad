@@ -9,7 +9,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { Router } from '@angular/router';
-import { normalizeName, normalizeRoomCode } from '@lunchrad/shared';
+import { normalizeName, normalizeRoomCode, type PresetSummary } from '@lunchrad/shared';
 import { Api, ApiFailure } from '../core/api';
 import { DeviceStore } from '../core/storage';
 import { Turnstile } from '../core/turnstile';
@@ -75,6 +75,22 @@ import { TeamKeyForm } from './team-key-form';
             aria-describedby="create-name-hint"
           />
           <p id="create-name-hint" class="hint">{{ t.nameHint }}</p>
+          @if (presets().length > 1) {
+            <label for="create-preset">{{ t.create.presetLabel }}</label>
+            <select
+              id="create-preset"
+              [value]="presetId()"
+              (change)="bind(presetId, $event)"
+              aria-describedby="create-preset-hint"
+            >
+              @for (p of presets(); track p.id) {
+                <option [value]="p.id" [selected]="p.id === presetId()">
+                  {{ t.create.presetOption(p.name, p.count) }}
+                </option>
+              }
+            </select>
+            <p id="create-preset-hint" class="hint">{{ t.create.presetHint }}</p>
+          }
           <div class="bot-check" #botCheck></div>
           @if (botCheckState() === 'loading') {
             <p class="hint">{{ t.create.botCheckLoading }}</p>
@@ -102,6 +118,8 @@ export class Home {
   protected readonly joinError = signal('');
   protected readonly createError = signal('');
   protected readonly botCheckState = signal<'loading' | 'ready' | 'failed'>('loading');
+  protected readonly presets = signal<PresetSummary[]>([]);
+  protected readonly presetId = signal('');
 
   private turnstileToken: string | null = null;
   private widgetId: string | null = null;
@@ -109,7 +127,10 @@ export class Home {
   private turnstileApi: Awaited<ReturnType<Turnstile['load']>> | null = null;
 
   constructor() {
-    afterNextRender(() => void this.renderBotCheck());
+    afterNextRender(() => {
+      void this.renderBotCheck();
+      void this.loadPresets();
+    });
     inject(DestroyRef).onDestroy(() => {
       if (this.widgetId) this.turnstileApi?.remove(this.widgetId);
     });
@@ -118,6 +139,7 @@ export class Home {
   protected onTeamReady(): void {
     this.hasTeam.set(true);
     setTimeout(() => void this.renderBotCheck());
+    void this.loadPresets();
   }
 
   protected async join(event: Event): Promise<void> {
@@ -160,9 +182,21 @@ export class Home {
     this.turnstileToken = null;
     if (this.widgetId) this.turnstileApi?.reset(this.widgetId);
     await this.run(this.createError, async () => {
-      const creds = await this.api.createRoom(name, token);
+      const creds = await this.api.createRoom(name, token, this.presetId() || null);
       this.enter(creds, name);
     });
+  }
+
+  /** Optional: without the list the room simply starts with the default preset. */
+  private async loadPresets(): Promise<void> {
+    if (!this.store.teamToken()) return;
+    try {
+      const presets = await this.api.presets();
+      this.presets.set(presets);
+      this.presetId.set(presets.find((p) => p.isDefault)?.id ?? presets[0]?.id ?? '');
+    } catch {
+      this.presets.set([]);
+    }
   }
 
   private enter(creds: { code: string; participantId: string; token: string }, name: string): void {

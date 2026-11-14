@@ -12,9 +12,10 @@ import {
   sessionRequest,
 } from '@lunchrad/shared';
 import { Hono, type Context, type Next } from 'hono';
-import { safeEqual } from './crypto.ts';
 import { isConfigured, type ConfiguredEnv, type Env } from './env.ts';
 import { apiError, apiOk, clientIp, readJson } from './http.ts';
+import { presetMenu, presetSummaries, registerRoom } from './db.ts';
+import { teamKeyMatches } from './team-key.ts';
 import { issueTeamSession, verifyTeamSession } from './team-session.ts';
 import { verifyTurnstile } from './turnstile.ts';
 
@@ -68,7 +69,7 @@ api.post('/session', async (c) => {
   }
   const body = sessionRequest.safeParse(await readJson(c.req.raw));
   if (!body.success) return apiError('bad_request');
-  if (!(await safeEqual(body.data.teamKey, env.TEAM_KEY))) return apiError('wrong_team_key');
+  if (!(await teamKeyMatches(env, body.data.teamKey))) return apiError('wrong_team_key');
   return apiOk(await issueTeamSession(env, Date.now()));
 });
 
@@ -88,17 +89,31 @@ api.post('/rooms', requireTeamSession, async (c) => {
   });
   if (!human) return apiError('bot_check_failed');
 
+  const menu = await presetMenu(env.DB, body.data.presetId);
+  if (!menu) return apiError('preset_not_found');
+
   // A code collision with a live room is astronomically rare; retry anyway.
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = generateRoomCode();
-    const result = await env.ROOMS.get(env.ROOMS.idFromName(code)).init(code, body.data.name);
+    const result = await env.ROOMS.get(env.ROOMS.idFromName(code)).init(code, body.data.name, menu);
     if (result.ok) {
+      // Only so the admin can list and close it; a room works without it.
+      c.executionCtx.waitUntil(
+        registerRoom(env.DB, code, result.createdAt, result.expiresAt).catch((err: unknown) =>
+          console.error('Could not register room', { name: (err as Error).name }),
+        ),
+      );
       return apiOk({ code, participantId: result.participantId, token: result.token }, 201);
     }
     if (result.error === 'invalid_name') return apiError('invalid_name');
   }
   console.error('Could not allocate a room code');
   return apiError('server_error');
+});
+
+/** The presets a host can start a room with (names only). */
+api.get('/presets', requireTeamSession, async (c) => {
+  return apiOk({ presets: await presetSummaries(c.env.DB) });
 });
 
 api.post('/rooms/:code/join', requireTeamSession, async (c) => {

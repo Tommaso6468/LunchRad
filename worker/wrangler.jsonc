@@ -18,13 +18,23 @@
     // Worker, hence "/" and "/index.html". Hashed JS/CSS files are served
     // straight from the asset layer (headers from public/_headers).
     "not_found_handling": "none",
-    "run_worker_first": ["/", "/index.html", "/api/*"],
+    "run_worker_first": ["/", "/index.html", "/api/*", "/admin/api/*"],
   },
   "observability": {
     "enabled": true,
   },
   // One Durable Object per room, SQLite-backed (the only kind on the free plan).
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
+  // Presets, the admin audit log, open rooms, the admin-set team key.
+  // Schema in migrations/, applied by the deploy workflows before each deploy.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "lunchrad-dev",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
   "durable_objects": {
     "bindings": [{ "name": "ROOMS", "class_name": "Room" }],
   },
@@ -47,6 +57,14 @@
       "vars": {
         "ENVIRONMENT": "staging",
       },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "lunchrad-staging",
+          "database_id": "STAGING_D1_ID",
+          "migrations_dir": "migrations",
+        },
+      ],
       "durable_objects": {
         "bindings": [{ "name": "ROOMS", "class_name": "Room" }],
       },
@@ -80,6 +98,14 @@
       "vars": {
         "ENVIRONMENT": "production",
       },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "lunchrad",
+          "database_id": "PRODUCTION_D1_ID",
+          "migrations_dir": "migrations",
+        },
+      ],
       "durable_objects": {
         "bindings": [{ "name": "ROOMS", "class_name": "Room" }],
       },

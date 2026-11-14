@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  input,
   output,
   signal,
   viewChild,
@@ -35,7 +36,7 @@ export interface NewRestaurant {
   template: `
     <dialog #dialog aria-labelledby="add-title" (close)="reset()">
       <form (submit)="submit($event)" novalidate>
-        <h2 id="add-title">{{ t.title }}</h2>
+        <h2 id="add-title">{{ heading() ?? t.title }}</h2>
 
         <label for="add-name">{{ t.name }}</label>
         <input
@@ -84,7 +85,7 @@ export interface NewRestaurant {
 
         <p class="error" role="alert">{{ errorText() }}</p>
         <div class="row">
-          <button type="submit" class="primary">{{ t.submit }}</button>
+          <button type="submit" class="primary">{{ submitLabel() ?? t.submit }}</button>
           <button type="button" class="secondary" (click)="close()">{{ t.cancel }}</button>
         </div>
       </form>
@@ -127,6 +128,9 @@ export interface NewRestaurant {
   `,
 })
 export class AddRestaurantDialog {
+  /** Overrides for reuse in the admin panel (editing instead of adding). */
+  readonly heading = input<string | null>(null);
+  readonly submitLabel = input<string | null>(null);
   readonly added = output<NewRestaurant>();
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
 
@@ -161,7 +165,12 @@ export class AddRestaurantDialog {
     }
   }
 
-  open(): void {
+  open(initial: NewRestaurant | null = null): void {
+    if (initial) {
+      this.name.set(initial.name);
+      this.category.set(initial.categories.join(', '));
+      this.mapsUrl.set(initial.mapsUrl ?? '');
+    }
     this.dialog().nativeElement.showModal();
   }
 

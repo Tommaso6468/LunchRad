@@ -1,4 +1,5 @@
-import type { ApiError, SocketError } from '@lunchrad/shared';
+import type { AdminError, ApiError, SocketError } from '@lunchrad/shared';
+import type { AdminFailureCode } from '../core/admin-api';
 import type { FinishReason } from '../core/room-connection';
 
 /**
@@ -21,6 +22,10 @@ export const nl = {
     title: 'Nieuwe kamer',
     intro: 'Jij wordt de host: jij laat het rad draaien.',
     submit: 'Kamer maken',
+    presetLabel: 'Restaurantlijst',
+    presetHint: 'Waar het rad mee begint. In de kamer kan iedereen er nog restaurants bij zetten.',
+    presetOption: (name: string, count: number) =>
+      `${name} (${count === 1 ? '1 restaurant' : `${count} restaurants`})`,
     botCheckLoading: 'Controle laden…',
     botCheckFailed: 'De controle kon niet laden. Herlaad de pagina en probeer het opnieuw.',
     botCheckWaiting: 'Wacht tot de controle hierboven klaar is.',
@@ -186,11 +191,143 @@ export const nl = {
       expired: 'De kamer is na 30 minuten automatisch gesloten.',
       empty: 'De kamer is gesloten omdat er niemand meer was.',
       finished: 'Jullie hebben gekozen. De kamer is 5 minuten na de uitslag gesloten.',
+      closed_by_admin: 'De beheerder heeft de kamer gesloten.',
       kicked: 'De host heeft je uit de kamer verwijderd.',
       left: 'Je hebt de kamer verlaten.',
       gone: 'Deze kamer bestaat niet meer.',
     } satisfies Record<FinishReason, string>,
     home: 'Naar het begin',
+  },
+
+  admin: {
+    title: 'Beheer',
+    signedInAs: (email: string) => `Ingelogd als ${email}`,
+    toApp: 'Naar Lunchrad',
+    tabsLabel: 'Beheer',
+    loading: 'Laden…',
+    saved: 'Opgeslagen',
+    tabs: {
+      restaurants: 'Restaurants',
+      presets: 'Lijsten',
+      rooms: 'Kamers',
+      teamKey: 'Teamcode',
+      audit: 'Logboek',
+    },
+    restaurants: {
+      intro:
+        'Alle restaurants die in een lijst kunnen staan. Een wijziging geldt voor nieuwe kamers; open kamers houden hun eigen kopie.',
+      add: 'Restaurant toevoegen',
+      edit: 'Bewerken',
+      editLabel: (name: string) => `${name} bewerken`,
+      editTitle: 'Restaurant bewerken',
+      save: 'Opslaan',
+      remove: 'Verwijderen',
+      removeLabel: (name: string) => `${name} verwijderen`,
+      confirmRemove: (name: string, lists: number) =>
+        lists === 0
+          ? `${name} verwijderen?`
+          : `${name} verwijderen? Het staat in ${lists === 1 ? '1 lijst' : `${lists} lijsten`} en verdwijnt daar ook uit.`,
+      inLists: (count: number) =>
+        count === 0 ? 'In geen enkele lijst' : count === 1 ? 'In 1 lijst' : `In ${count} lijsten`,
+      empty: 'Nog geen restaurants.',
+      added: (name: string) => `${name} toegevoegd`,
+      removed: (name: string) => `${name} verwijderd`,
+    },
+    presets: {
+      intro:
+        'Een kamer begint met één lijst. De standaardlijst is voorgekozen; de host kan een andere kiezen.',
+      newLabel: 'Nieuwe lijst',
+      add: 'Lijst maken',
+      default: 'standaard',
+      makeDefault: 'Maak standaard',
+      rename: 'Hernoemen',
+      renamePrompt: 'Nieuwe naam voor de lijst',
+      remove: 'Verwijderen',
+      confirmRemove: (name: string) =>
+        `De lijst ${name} verwijderen? De restaurants blijven bestaan.`,
+      count: (n: number) => (n === 1 ? '1 restaurant' : `${n} restaurants`),
+      choose: 'Restaurants kiezen',
+      chooseLabel: (name: string) => `Restaurants in ${name} kiezen`,
+      saveChoice: 'Lijst opslaan',
+      cancel: 'Annuleren',
+      max: (n: number) => `Maximaal ${n} restaurants per lijst.`,
+      selected: (n: number, max: number) => `${n} van maximaal ${max} gekozen`,
+    },
+    rooms: {
+      intro: 'Kamers die nu open zijn. Sluiten werkt direct voor iedereen in de kamer.',
+      refresh: 'Vernieuwen',
+      empty: 'Er is nu geen kamer open.',
+      close: 'Sluiten',
+      closeLabel: (code: string) => `Kamer ${code} sluiten`,
+      confirmClose: (code: string) => `Kamer ${code} nu sluiten voor iedereen?`,
+      people: (connected: number, total: number) => `${connected} van ${total} verbonden`,
+      phase: {
+        lobby: 'Kiezen',
+        spinning: 'Rad draait',
+        voting: 'Stemmen',
+        result: 'Uitslag',
+      },
+      closesIn: (minutes: number) => `sluit over ${minutes} min`,
+      closed: (code: string) => `Kamer ${code} gesloten`,
+    },
+    teamKey: {
+      intro:
+        'Iedereen vult de teamcode één keer in op een apparaat. Maak een nieuwe als iemand het team verlaat of als de code is uitgelekt.',
+      fromSecret: 'De teamcode komt nu uit de instelling TEAM_KEY bij Cloudflare.',
+      rotatedAt: (when: string, by: string) => `Laatst vernieuwd op ${when} door ${by}.`,
+      rotate: 'Nieuwe teamcode maken',
+      confirmRotate:
+        'Een nieuwe teamcode maken? Alle apparaten moeten daarna de nieuwe code invullen. Open kamers lopen gewoon door.',
+      newKey: 'De nieuwe teamcode',
+      showOnce: 'Deze code wordt maar één keer getoond. Deel hem nu met je team.',
+      copy: 'Kopiëren',
+      copied: 'Gekopieerd',
+    },
+    audit: {
+      intro: 'Elke wijziging in het beheer, nieuwste eerst.',
+      more: 'Meer laden',
+      empty: 'Nog niets gewijzigd.',
+      entity: {
+        restaurant: 'Restaurant',
+        preset: 'Lijst',
+        room: 'Kamer',
+        team_key: 'Teamcode',
+      } as Record<string, string>,
+      action: {
+        create: 'toegevoegd',
+        update: 'bewerkt',
+        delete: 'verwijderd',
+        rename: 'hernoemd',
+        set_restaurants: 'restaurants gewijzigd',
+        make_default: 'standaard gemaakt',
+        close: 'gesloten',
+        rotate: 'vernieuwd',
+      } as Record<string, string>,
+    },
+    errors: {
+      unauthorized: 'Je bent niet (meer) ingelogd voor het beheer.',
+      forbidden: 'Dit verzoek is geweigerd. Herlaad de pagina.',
+      not_configured:
+        'Het beheer is nog niet ingesteld. Zet ACCESS_TEAM_DOMAIN, ACCESS_AUD en ADMIN_EMAILS bij de Worker.',
+      bad_request: 'Er klopt iets niet aan het verzoek. Herlaad de pagina.',
+      not_found: 'Dat bestaat niet meer. Herlaad de pagina.',
+      invalid_restaurant: 'Gebruik 1 tot 40 letters, cijfers of leestekens voor de naam.',
+      invalid_category:
+        'Gebruik maximaal 3 soorten eten van elk 30 letters, cijfers of leestekens, gescheiden door een komma.',
+      invalid_maps_url: 'Alleen links naar Google Maps zijn toegestaan.',
+      restaurant_exists: 'Er is al een restaurant met die naam.',
+      catalogue_full: 'Er kunnen maximaal 300 restaurants in het beheer.',
+      invalid_preset_name:
+        'Gebruik 1 tot 40 letters, cijfers of leestekens voor de naam van de lijst.',
+      preset_exists: 'Er is al een lijst met die naam.',
+      too_many_presets: 'Er kunnen maximaal 30 lijsten zijn.',
+      too_many_restaurants: 'Er kunnen maximaal 30 restaurants in een lijst.',
+      default_preset: 'De standaardlijst kan niet weg. Maak eerst een andere lijst standaard.',
+      server_error: 'Er ging iets mis. Probeer het opnieuw.',
+      network: 'Geen verbinding. Controleer je internet en probeer het opnieuw.',
+      login: 'Je sessie voor het beheer is verlopen.',
+    } satisfies Record<AdminError | AdminFailureCode, string>,
+    loginAgain: 'Opnieuw inloggen',
   },
 
   errors: {
@@ -203,6 +340,7 @@ export const nl = {
     name_taken: 'Iemand in deze kamer heeft die naam al. Kies een andere.',
     room_full: 'Deze kamer is vol (maximaal 20 personen).',
     room_not_found: 'Deze kamer bestaat niet (meer). Controleer de code.',
+    preset_not_found: 'Die restaurantlijst bestaat niet meer. Kies een andere.',
     not_found: 'Niet gevonden.',
     not_configured: 'Lunchrad is nog niet klaar voor gebruik. Laat de beheerder het instellen.',
     server_error: 'Er ging iets mis. Probeer het opnieuw.',

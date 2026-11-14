@@ -63,6 +63,8 @@ export const sessionResponse = z.strictObject({ token: z.string(), expiresAt: z.
 export const createRoomRequest = z.strictObject({
   name,
   turnstileToken: z.string().check(z.minLength(1), z.maxLength(2048)),
+  /** Which preset the wheel starts with; the default preset when left out. */
+  presetId: z.optional(z.string().check(z.regex(/^[a-f0-9]{16}$/))),
 });
 export const joinRoomRequest = z.strictObject({ name });
 
@@ -86,6 +88,7 @@ export const API_ERRORS = [
   'name_taken',
   'room_full',
   'room_not_found',
+  'preset_not_found',
   'not_found',
   'not_configured',
   'server_error',
@@ -198,7 +201,7 @@ export function respinNeeds(eligible: number): number {
 export type RoomPhase = RoomState['phase'];
 export type RoomState = z.infer<typeof roomState>;
 
-export const CLOSE_REASONS = ['ended', 'expired', 'empty', 'finished'] as const;
+export const CLOSE_REASONS = ['ended', 'expired', 'empty', 'finished', 'closed_by_admin'] as const;
 export type CloseReason = (typeof CLOSE_REASONS)[number];
 
 export const SOCKET_ERRORS = [

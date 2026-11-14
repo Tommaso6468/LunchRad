@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { admin } from './admin.ts';
 import { api } from './api.ts';
 import type { Env } from './env.ts';
 import { generateNonce, shellCsp, withSecurityHeaders } from './security.ts';
@@ -16,6 +17,8 @@ const textError = (status: 404 | 405, message: string): Response =>
   });
 
 app.route('/api', api);
+// Behind Cloudflare Access; every request is verified again in admin.ts.
+app.route('/admin/api', admin);
 
 /**
  * Serves the Angular app shell for every non-file path ("/", "/r/ABC123", ...),

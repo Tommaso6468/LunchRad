@@ -4,7 +4,7 @@ Kies samen waar jullie gaan lunchen. A realtime lunch wheel for a small team:
 join a room with a code, add and boost restaurants, let the host spin the
 arcade reel, and vote on a respin.
 
-Status: **M4 — Respin vote**. Teams enter a shared team key once,
+Status: **M5 — Admin and presets**. Teams enter a shared team key once,
 create rooms (with a bot check) or join with a code, QR code or link, and see
 each other live. The host can hand over the role, remove people and close the
 room; rooms close themselves after 30 minutes. Everyone can add restaurants
@@ -12,17 +12,19 @@ room; rooms close themselves after 30 minutes. Everyone can add restaurants
 on the wheel. The host pulls the lever; the server picks the winner and every
 phone runs the same reel animation to it. Then everyone present votes for 30
 seconds: more than half yes removes that restaurant and spins again (at most
-3 times). After the final result the room closes in 5 minutes.
+3 times). After the final result the room closes in 5 minutes. Admins manage
+restaurants and lists at `/admin` (behind Cloudflare Access), see and close
+open rooms, rotate the team key, and every change lands in an audit log.
 
 ## Stack
 
-| Part        | Technology                                                   |
-| ----------- | ------------------------------------------------------------ |
-| Frontend    | Angular v22 (standalone, signals, zoneless), Dutch only      |
-| Backend     | Cloudflare Worker (Hono), Durable Objects per room (from M1) |
-| Storage     | D1 for presets and audit log (from M5)                       |
-| Admin login | Cloudflare Access (from M5)                                  |
-| Hosting     | Cloudflare Workers free plan                                 |
+| Part        | Technology                                                    |
+| ----------- | ------------------------------------------------------------- |
+| Frontend    | Angular v22 (standalone, signals, zoneless), Dutch only       |
+| Backend     | Cloudflare Worker (Hono), Durable Objects per room (from M1)  |
+| Storage     | D1 for presets and audit log                                  |
+| Admin login | Cloudflare Access (email one-time PIN), JWT checked in Worker |
+| Hosting     | Cloudflare Workers free plan                                  |
 
 ## Repository layout
 

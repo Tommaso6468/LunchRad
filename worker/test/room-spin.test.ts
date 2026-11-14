@@ -2,7 +2,6 @@ import { LIMITS } from '@lunchrad/shared';
 import { runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Room } from '../src/room.ts';
-import { SEED_RESTAURANTS } from '../src/seed-preset.ts';
 import { connectAs, createRoom, joinRoom, mockTurnstile, roomStub, type Creds } from './helpers.ts';
 
 beforeEach(() => {
@@ -80,7 +79,7 @@ describe('starting the spin', () => {
     });
     const spin = seenByTom.spin;
     if (!spin) throw new Error('no spin');
-    expect(spin.reel).toHaveLength(SEED_RESTAURANTS.length + 1);
+    expect(spin.reel).toHaveLength(restaurants.length + 1);
     expect(spin.reel.filter((id) => id === boosted.id)).toHaveLength(2);
     expect(spin.reel[spin.winnerIndex]).toBe(spin.winnerId);
     expect(new Set(spin.reel)).toEqual(new Set(restaurants.map((r) => r.id)));
