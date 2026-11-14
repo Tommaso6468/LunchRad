@@ -192,4 +192,4 @@ rooms keep running.
 
 | Milestone | What you will need to do                                                                 |
 | --------- | ---------------------------------------------------------------------------------------- |
-| M7        | Run the full ZAP scan and the restore test of D1; approve the final security assessment. |
+| M8        | Run the full ZAP scan and the restore test of D1; approve the final security assessment. |

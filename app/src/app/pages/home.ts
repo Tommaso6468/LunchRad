@@ -8,7 +8,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { normalizeName, normalizeRoomCode, type PresetSummary } from '@lunchrad/shared';
 import { Api, ApiFailure } from '../core/api';
 import { DeviceStore } from '../core/storage';
@@ -20,7 +20,7 @@ import { TeamKeyForm } from './team-key-form';
 @Component({
   selector: 'app-home',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TeamKeyForm],
+  imports: [TeamKeyForm, RouterLink],
   template: `
     <header class="masthead">
       <h1 class="wordmark">{{ t.appName }}</h1>
@@ -99,6 +99,8 @@ import { TeamKeyForm } from './team-key-form';
           <button type="submit" class="secondary" [disabled]="busy()">{{ t.create.submit }}</button>
         </form>
       </section>
+
+      <a routerLink="/statistieken" class="button secondary stats-link">{{ t.stats.link }}</a>
     }
   `,
 })

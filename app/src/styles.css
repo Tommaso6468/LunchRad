@@ -550,6 +550,9 @@ app-admin {
 
 .admin-head .small-link {
   margin-left: auto;
+}
+
+.small-link {
   min-height: 2.5rem;
   padding: 0.3rem 0.75rem;
   font-size: 0.9rem;

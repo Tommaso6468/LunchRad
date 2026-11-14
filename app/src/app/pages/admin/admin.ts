@@ -2,14 +2,15 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { RouterLink } from '@angular/router';
 import { nl } from '../../i18n/nl';
 import { AdminAudit } from './admin-audit';
+import { AdminHistory } from './admin-history';
 import { AdminPresets } from './admin-presets';
 import { AdminRestaurants } from './admin-restaurants';
 import { AdminRooms } from './admin-rooms';
 import { AdminStore } from './admin-store';
 import { AdminTeamKey } from './admin-team-key';
 
-type Tab = 'restaurants' | 'presets' | 'rooms' | 'teamKey' | 'audit';
-const TABS: readonly Tab[] = ['restaurants', 'presets', 'rooms', 'teamKey', 'audit'];
+type Tab = 'restaurants' | 'presets' | 'rooms' | 'history' | 'teamKey' | 'audit';
+const TABS: readonly Tab[] = ['restaurants', 'presets', 'rooms', 'history', 'teamKey', 'audit'];
 
 /**
  * The admin panel at /admin. Cloudflare Access logs the admin in before this
@@ -20,7 +21,15 @@ const TABS: readonly Tab[] = ['restaurants', 'presets', 'rooms', 'teamKey', 'aud
   selector: 'app-admin',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [AdminStore],
-  imports: [RouterLink, AdminRestaurants, AdminPresets, AdminRooms, AdminTeamKey, AdminAudit],
+  imports: [
+    RouterLink,
+    AdminRestaurants,
+    AdminPresets,
+    AdminRooms,
+    AdminHistory,
+    AdminTeamKey,
+    AdminAudit,
+  ],
   template: `
     <header class="admin-head">
       <h1 class="page-title">{{ t.title }}</h1>
@@ -72,6 +81,9 @@ const TABS: readonly Tab[] = ['restaurants', 'presets', 'rooms', 'teamKey', 'aud
           }
           @case ('rooms') {
             <app-admin-rooms />
+          }
+          @case ('history') {
+            <app-admin-history />
           }
           @case ('teamKey') {
             <app-admin-team-key />

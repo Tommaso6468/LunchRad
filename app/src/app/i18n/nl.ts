@@ -10,6 +10,21 @@ export const nl = {
   appName: 'Lunchrad',
   tagline: 'Waar gaan we lunchen?',
 
+  stats: {
+    title: 'Eerdere lunches',
+    link: 'Eerdere lunches bekijken',
+    back: 'Terug',
+    loading: 'Laden…',
+    empty: 'Nog geen lunches. Na de eerste uitslag staat hier waar jullie heen gingen.',
+    summary: (total: number, since: string) =>
+      `${total === 1 ? '1 lunch' : `${total} lunches`} sinds ${since}.`,
+    top: 'Vaakst gekozen',
+    recent: 'Laatste keuzes',
+    times: (n: number) => (n === 1 ? '1 keer' : `${n} keer`),
+    last: (when: string) => `Laatst op ${when}`,
+    newPlace: 'nieuwe plek',
+  },
+
   app: {
     offline: 'Geen internet. Lunchrad werkt weer zodra je verbinding hebt.',
     updateReady: 'Er is een nieuwe versie van Lunchrad.',
@@ -106,6 +121,12 @@ export const nl = {
     confirmRemove: (name: string) => `${name} van het rad halen?`,
     howBoostWorks: 'Een boost geeft een restaurant een extra vak op het rad. Je hebt er één.',
     locked: 'Het rad is gedraaid: de lijst en de boosts zitten op slot.',
+    newPlace: {
+      label: 'Nieuwe plekken voorrang',
+      hint: 'Restaurants waar jullie nog nooit zijn uitgekomen krijgen een extra vak op het rad.',
+      on: 'Nieuwe plekken krijgen voorrang: een extra vak voor elk restaurant waar jullie nog nooit zijn geweest.',
+      tag: 'nieuw',
+    },
     dialog: {
       title: 'Restaurant toevoegen',
       name: 'Naam',
@@ -175,6 +196,8 @@ export const nl = {
 
   toasts: {
     youAreHost: 'Jij bent nu de host',
+    newPlaceOn: 'De host geeft nieuwe plekken voorrang',
+    newPlaceOff: 'Nieuwe plekken krijgen geen voorrang meer',
     newHost: (name: string) => `${name} is nu de host`,
     kicked: (name: string) => `${name} is uit de kamer verwijderd`,
     closingSoon: 'De kamer sluit over 5 minuten',
@@ -220,6 +243,7 @@ export const nl = {
       restaurants: 'Restaurants',
       presets: 'Lijsten',
       rooms: 'Kamers',
+      history: 'Lunches',
       teamKey: 'Teamcode',
       audit: 'Logboek',
     },
@@ -280,6 +304,21 @@ export const nl = {
       closesIn: (minutes: number) => `sluit over ${minutes} min`,
       closed: (code: string) => `Kamer ${code} gesloten`,
     },
+    history: {
+      intro:
+        'Waar het team uitkwam. Dit staat bij "Eerdere lunches" en bepaalt welke restaurants nieuw zijn. Alleen restaurant en tijd, nooit wie er meedeed.',
+      empty: 'Nog geen lunches.',
+      remove: 'Verwijderen',
+      removeLabel: (name: string, when: string) => `${name} van ${when} verwijderen`,
+      confirmRemove: (name: string, when: string) =>
+        `${name} van ${when} uit de geschiedenis halen?`,
+      removed: 'Verwijderd',
+      clear: 'Alles wissen',
+      confirmClear:
+        'De hele geschiedenis wissen? Alle restaurants tellen daarna weer als nieuw. Dit kan niet ongedaan worden.',
+      cleared: 'Geschiedenis gewist',
+      more: 'Meer laden',
+    },
     teamKey: {
       intro:
         'Iedereen vult de teamcode één keer in op een apparaat. Maak een nieuwe als iemand het team verlaat of als de code is uitgelekt.',
@@ -309,6 +348,7 @@ export const nl = {
         preset: 'Lijst',
         room: 'Kamer',
         team_key: 'Teamcode',
+        history: 'Lunch',
       } as Record<string, string>,
       action: {
         create: 'toegevoegd',
@@ -319,6 +359,7 @@ export const nl = {
         make_default: 'standaard gemaakt',
         close: 'gesloten',
         rotate: 'vernieuwd',
+        clear: 'alles gewist',
       } as Record<string, string>,
     },
     errors: {

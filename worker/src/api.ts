@@ -14,7 +14,7 @@ import {
 import { Hono, type Context, type Next } from 'hono';
 import { isConfigured, type ConfiguredEnv, type Env } from './env.ts';
 import { apiError, apiOk, clientIp, readJson } from './http.ts';
-import { presetMenu, presetSummaries, registerRoom } from './db.ts';
+import { presetMenu, presetSummaries, registerRoom, stats, visitedKeys } from './db.ts';
 import { teamKeyMatches } from './team-key.ts';
 import { issueTeamSession, verifyTeamSession } from './team-session.ts';
 import { verifyTurnstile } from './turnstile.ts';
@@ -89,13 +89,21 @@ api.post('/rooms', requireTeamSession, async (c) => {
   });
   if (!human) return apiError('bot_check_failed');
 
-  const menu = await presetMenu(env.DB, body.data.presetId);
+  const [menu, visited] = await Promise.all([
+    presetMenu(env.DB, body.data.presetId),
+    visitedKeys(env.DB),
+  ]);
   if (!menu) return apiError('preset_not_found');
 
   // A code collision with a live room is astronomically rare; retry anyway.
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = generateRoomCode();
-    const result = await env.ROOMS.get(env.ROOMS.idFromName(code)).init(code, body.data.name, menu);
+    const result = await env.ROOMS.get(env.ROOMS.idFromName(code)).init(
+      code,
+      body.data.name,
+      menu,
+      visited,
+    );
     if (result.ok) {
       // Only so the admin can list and close it; a room works without it.
       c.executionCtx.waitUntil(
@@ -110,6 +118,9 @@ api.post('/rooms', requireTeamSession, async (c) => {
   console.error('Could not allocate a room code');
   return apiError('server_error');
 });
+
+/** Where the team ended up: totals, most picked, latest. Restaurant names and times only. */
+api.get('/stats', requireTeamSession, async (c) => apiOk(await stats(c.env.DB)));
 
 /** The presets a host can start a room with (names only). */
 api.get('/presets', requireTeamSession, async (c) => {

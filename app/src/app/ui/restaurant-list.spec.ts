@@ -23,11 +23,13 @@ const state: RoomState = {
       categories: ['Chinees', 'Noedels'],
       mapsUrl: 'https://maps.app.goo.gl/x',
       addedBy: null,
+      visited: true,
     },
-    { id: PHO, name: 'Pho 99', categories: [], mapsUrl: null, addedBy: TOM },
+    { id: PHO, name: 'Pho 99', categories: [], mapsUrl: null, addedBy: TOM, visited: false },
   ],
   phase: 'lobby',
   respinsLeft: 3,
+  newPlace: false,
   vote: null,
   closesInMs: null,
   spin: null,
@@ -105,6 +107,22 @@ describe('RestaurantList', () => {
     ).toBe(true);
     expect((await expand(view, 0))?.querySelector('.remove')).toBeNull();
     expect(view.el.querySelector('button.add')).toBeNull();
+  });
+
+  it('new-place mode adds a slice to restaurants that never won, and tags them', async () => {
+    const fixture = TestBed.createComponent(RestaurantList);
+    fixture.componentRef.setInput('state', { ...state, newPlace: true });
+    fixture.componentRef.setInput('you', TOM);
+    fixture.componentRef.setInput('isHost', false);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    const frac = [...el.querySelectorAll('.odds .frac')].map((o) => o.textContent?.trim());
+    expect(frac).toEqual(['3/5', '2/5']);
+    expect([...el.querySelectorAll('.new-tag')].map((t) => t.closest('li')?.textContent)).toEqual([
+      expect.stringContaining('Pho 99'),
+    ]);
+    expect(el.querySelector('.new-place-on')).not.toBeNull();
+    expect(el.querySelector('.new-place input')).toBeNull();
   });
 
   it('opens Maps links in a new tab without leaking the page', async () => {

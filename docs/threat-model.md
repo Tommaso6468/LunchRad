@@ -1,6 +1,6 @@
 # Threat model
 
-Version 7 — M6 (14 November 2026). Update this file in every milestone that
+Version 8 — M7 (14 November 2026). Update this file in every milestone that
 changes the attack surface.
 
 ## Assets
@@ -12,6 +12,7 @@ changes the attack surface.
 | Admin capabilities            | Presets, team-key rotation, force-closing rooms         |
 | Deploy pipeline               | Whoever deploys controls everything users run           |
 | Participant names             | Personal data (AVG/GDPR), minimal but real              |
+| Lunch history                 | Where the team ate and when; feeds new-place mode       |
 
 ## Trust boundaries
 
@@ -38,6 +39,8 @@ changes the attack surface.
 | T10 | Tampering              | Cross-site request forgery on the admin API via the Access cookie | Changes need the exact Origin, the `X-Lunchrad-Admin` header (forces a CORS preflight that is never answered) and a JSON body                                                                                                                                                   | M5 ✓       |
 | T11 | Tampering              | SQL injection through admin input or ids                          | Prepared statements with bound parameters only; ids checked against `^[a-f0-9]{16}$`; same text rules as rooms                                                                                                                                                                  | M5 ✓       |
 | T12 | Tampering              | A service worker serving stale or poisoned content                | Hand-written SW: same-origin GET only; pages network-first; `/api`, `/admin`, `/sw.js` never cached; precache list fixed at build; `sw.js` served with `no-cache` and its own CSP (`connect-src 'self'`); registration through a Trusted Types policy that allows `/sw.js` only | M6 ✓       |
+| T13 | Tampering              | Faking history to steer new-place mode or the stats               | Only the room writes history, once per room (unique random ref), from its own server-side result; no client endpoint writes it; admins can delete entries (audited)                                                                                                             | M7 ✓       |
+| I5  | Information disclosure | History revealing who ate where                                   | Rows hold restaurant, time, respins and mode only, never participants; stats need a team session                                                                                                                                                                                | M7 ✓       |
 | S5  | Spoofing               | Team key leaked or ex-colleague keeps access                      | Admin rotation: server-generated 100-bit key, only an HMAC stored, every team session invalidated within 30 s                                                                                                                                                                   | M5 ✓       |
 | R1  | Repudiation            | Preset deleted, nobody knows by whom                              | Every admin change and its audit row are written in one D1 batch; the team key itself is never logged                                                                                                                                                                           | M5 ✓       |
 | I1  | Information disclosure | Room state leaks to non-members                                   | WebSocket requires team session + participant token; no room listing; tokens never sent to other clients                                                                                                                                                                        | M1 ✓       |
@@ -55,6 +58,8 @@ changes the attack surface.
 
 ## Notes for later milestones
 
+- **M7 (done):** see T13 and I5. New-place mode can only be switched by the
+  host before the spin and is applied by the server when it builds the reel.
 - **M6 (done):** see T12. The cached shell (with its nonce and matching CSP
   header) is only used when the network fails; online, every page load gets a
   fresh nonce.
