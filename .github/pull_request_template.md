@@ -1,6 +1,6 @@
 ## What and why
 
-<!-- One or two sentences. Link the milestone (M0–M8). -->
+<!-- One or two sentences. Link the milestone (M0–M9). -->
 
 ## Security checklist
 

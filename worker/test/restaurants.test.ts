@@ -95,6 +95,7 @@ describe('new rooms', () => {
         categories: r.categories,
         mapsUrl: r.mapsUrl,
         addedBy: null,
+        visited: false,
       })),
     );
   });
@@ -128,6 +129,7 @@ describe('adding restaurants', () => {
       categories: ['Chinees', 'Noedels'],
       mapsUrl: 'https://maps.app.goo.gl/AbC123',
       addedBy: tom.participantId,
+      visited: false,
     });
     const seen = await hostSocket.stateWhere((s) =>
       s.restaurants.some((r) => r.name === 'Wok To Go'),

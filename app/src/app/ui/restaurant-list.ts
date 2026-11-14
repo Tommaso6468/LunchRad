@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
-import { LIMITS, type RoomState } from '@lunchrad/shared';
+import { LIMITS, restaurantSlices, type RoomState } from '@lunchrad/shared';
 import { nl } from '../i18n/nl';
 
 interface Row {
@@ -11,6 +11,8 @@ interface Row {
   boosters: string[];
   boostedByYou: boolean;
   canRemove: boolean;
+  /** Gets the new-place bonus right now. */
+  isNew: boolean;
 }
 
 /**
@@ -25,6 +27,22 @@ interface Row {
     <section class="panel" aria-labelledby="restaurants-title">
       <h2 id="restaurants-title" class="visually-hidden">{{ t.title(rows().length) }}</h2>
       <p class="hint">{{ locked() ? t.locked : t.howBoostWorks }}</p>
+
+      @if (isHost() && !locked()) {
+        <label class="new-place">
+          <input
+            type="checkbox"
+            role="switch"
+            [checked]="state().newPlace"
+            (change)="newPlace.emit(!state().newPlace)"
+            aria-describedby="new-place-hint"
+          />
+          <span>{{ t.newPlace.label }}</span>
+        </label>
+        <p id="new-place-hint" class="hint">{{ t.newPlace.hint }}</p>
+      } @else if (state().newPlace) {
+        <p class="new-place-on">{{ t.newPlace.on }}</p>
+      }
 
       @if (rows().length === 0) {
         <p class="empty">{{ t.empty }}</p>
@@ -42,8 +60,11 @@ interface Row {
                   (click)="toggle(r.id)"
                 >
                   <span class="r-name">{{ r.name }}</span>
-                  @if (r.categories.length) {
+                  @if (r.categories.length || r.isNew) {
                     <span class="r-categories">
+                      @if (r.isNew) {
+                        <span class="new-tag">{{ t.newPlace.tag }}</span>
+                      }
                       @for (c of r.categories; track c) {
                         <span class="tag">{{ c }}</span>
                       }
@@ -113,6 +134,36 @@ interface Row {
     </section>
   `,
   styles: `
+    .new-place {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      min-height: 2.75rem;
+      margin-top: 0.25rem;
+    }
+    .new-place input {
+      width: 2.6rem;
+      height: 1.5rem;
+      min-height: 0;
+      padding: 0;
+      accent-color: var(--ticket);
+    }
+    .new-place-on {
+      padding: 0.4rem 0.7rem;
+      border-radius: 0.6rem;
+      background: var(--brass);
+      color: var(--ink-on-brass);
+      font-weight: 700;
+    }
+    .new-tag {
+      padding: 0 0.45rem;
+      border-radius: 999px;
+      background: var(--brass);
+      color: var(--ink-on-brass);
+      font-size: 0.75rem;
+      font-weight: 700;
+      vertical-align: middle;
+    }
     .restaurants {
       list-style: none;
       margin: 0.25rem 0 0;
@@ -237,6 +288,8 @@ export class RestaurantList {
   readonly toggleBoost = output<string | null>();
   readonly remove = output<{ id: string; name: string }>();
   readonly addRequested = output();
+  /** Host switches new-place mode. */
+  readonly newPlace = output<boolean>();
 
   protected readonly t = nl.restaurants;
   /** The one restaurant whose details (Maps, boosters, remove) are open. */
@@ -256,7 +309,8 @@ export class RestaurantList {
         name: r.name,
         categories: r.categories,
         mapsUrl: r.mapsUrl,
-        slices: 1 + boosters.length,
+        slices: restaurantSlices(boosters.length, state.newPlace, r.visited),
+        isNew: state.newPlace && !r.visited,
         boosters: boosters.map((p) => p.name),
         boostedByYou: boosters.some((p) => p.id === you),
         canRemove: this.isHost() || (r.addedBy !== null && r.addedBy === you),
@@ -264,7 +318,7 @@ export class RestaurantList {
     });
   });
 
-  /** Slices on the wheel: one per restaurant plus one per boost. */
+  /** Slices on the wheel: one per restaurant, one per boost, plus the new-place bonus. */
   protected readonly total = computed(() => this.rows().reduce((sum, r) => sum + r.slices, 0));
   protected readonly full = computed(() => this.rows().length >= LIMITS.maxRestaurants);
 }

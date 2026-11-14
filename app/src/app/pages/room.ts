@@ -159,6 +159,7 @@ import { TeamKeyForm } from './team-key-form';
               (toggleBoost)="toggleBoost($event)"
               (remove)="removeRestaurant($event)"
               (addRequested)="addDialog.open()"
+              (newPlace)="setNewPlace($event)"
             />
           </div>
           <app-add-restaurant-dialog #addDialog (added)="addRestaurant($event)" />
@@ -365,6 +366,10 @@ export class Room {
     this.connection()?.send({ type: 'start_spin' });
   }
 
+  protected setNewPlace(on: boolean): void {
+    this.connection()?.send({ type: 'set_new_place', on });
+  }
+
   protected vote(choice: 'yes' | 'no'): void {
     this.connection()?.send({ type: 'vote', choice });
   }
@@ -424,6 +429,12 @@ export class Room {
         }
         break;
       }
+      case 'new_place_changed':
+        // The host just flipped the switch; everyone else hears about it.
+        if (!conn?.isHost()) {
+          this.toasts.show(event.on ? nl.toasts.newPlaceOn : nl.toasts.newPlaceOff);
+        }
+        break;
       case 'kicked':
         this.toasts.show(nl.toasts.kicked(event.name));
         break;

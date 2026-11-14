@@ -3,10 +3,12 @@ import {
   apiErrorBody,
   configResponse,
   presetList,
+  statsResponse,
   roomCredentials,
   sessionResponse,
   type ApiError,
   type PresetSummary,
+  type StatsResponse,
   type RoomCredentials,
 } from '@lunchrad/shared';
 import { DeviceStore } from './storage';
@@ -42,6 +44,10 @@ export class Api {
   ): Promise<RoomCredentials> {
     const body = presetId ? { name, turnstileToken, presetId } : { name, turnstileToken };
     return this.request('POST', '/api/rooms', body, roomCredentials, true);
+  }
+
+  stats(): Promise<StatsResponse> {
+    return this.request('GET', '/api/stats', undefined, statsResponse, true);
   }
 
   async presets(): Promise<PresetSummary[]> {

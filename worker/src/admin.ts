@@ -12,6 +12,7 @@
  */
 import {
   AUDIT_PAGE_SIZE,
+  HISTORY_PAGE_SIZE,
   CATALOGUE_MAX_RESTAURANTS,
   PRESETS_MAX,
   normalizeCategories,
@@ -32,6 +33,7 @@ import {
   auditStatement,
   isUniqueViolation,
   listAudit,
+  listHistory,
   listPresets,
   listRestaurants,
   openRooms,
@@ -455,6 +457,60 @@ admin.post('/team-key/rotate', async (c) => {
   ]);
   clearTeamKeyCache();
   return ok({ teamKey, rotatedAt });
+});
+
+// ---------- Lunch history ----------
+
+admin.get('/history', async (c) => {
+  const raw = c.req.query('before');
+  const before = raw === undefined ? null : Number(raw);
+  if (before !== null && (!Number.isSafeInteger(before) || before < 1)) return fail('bad_request');
+  const entries = await listHistory(c.env.DB, before, HISTORY_PAGE_SIZE);
+  const last = entries.at(-1);
+  return ok({
+    entries,
+    nextBefore: entries.length === HISTORY_PAGE_SIZE && last ? last.id : null,
+  });
+});
+
+admin.delete('/history/:id', async (c) => {
+  const raw = c.req.param('id') ?? '';
+  const id = /^[1-9][0-9]{0,15}$/.test(raw) ? Number(raw) : null;
+  if (id === null) return fail('not_found');
+  const db = c.env.DB;
+  const row = await db
+    .prepare('SELECT name, decided_at FROM lunch_history WHERE id = ?')
+    .bind(id)
+    .first<{ name: string; decided_at: number }>();
+  if (!row) return fail('not_found');
+  await db.batch([
+    db.prepare('DELETE FROM lunch_history WHERE id = ?').bind(id),
+    auditStatement(db, Date.now(), {
+      email: c.get('admin').email,
+      action: 'delete',
+      entity: 'history',
+      entityId: String(id),
+      detail: { name: row.name, decidedAt: row.decided_at },
+    }),
+  ]);
+  return ok({ deleted: id });
+});
+
+/** Wipes all history. The client asks for confirmation; the count goes in the audit log. */
+admin.delete('/history', async (c) => {
+  const db = c.env.DB;
+  const count = await db.prepare('SELECT count(*) AS n FROM lunch_history').first<{ n: number }>();
+  await db.batch([
+    db.prepare('DELETE FROM lunch_history'),
+    auditStatement(db, Date.now(), {
+      email: c.get('admin').email,
+      action: 'clear',
+      entity: 'history',
+      entityId: null,
+      detail: { count: count?.n ?? 0 },
+    }),
+  ]);
+  return ok({ deleted: count?.n ?? 0 });
 });
 
 // ---------- Audit log ----------

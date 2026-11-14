@@ -4,12 +4,14 @@ import {
   adminOverview,
   adminRooms,
   auditPage,
+  historyPage,
   teamKeyRotated,
   teamKeyStatus,
   type AdminError,
   type AdminOverview,
   type AdminRoom,
   type AuditPage,
+  type HistoryPage,
   type RestaurantInput,
   type TeamKeyStatus,
 } from '@lunchrad/shared';
@@ -20,6 +22,9 @@ interface Parser<T> {
 
 /** 'login' means the Cloudflare Access session is missing or has expired. */
 export type AdminFailureCode = AdminError | 'network' | 'login';
+
+/** For answers whose body the app does not use. */
+const ANY: Parser<unknown> = { safeParse: (data: unknown) => ({ success: true as const, data }) };
 
 export class AdminFailure extends Error {
   constructor(readonly code: AdminFailureCode) {
@@ -79,9 +84,7 @@ export class AdminApi {
   }
 
   async closeRoom(code: string): Promise<void> {
-    await this.request('POST', `/rooms/${code}/close`, undefined, {
-      safeParse: (data: unknown) => ({ success: true as const, data }),
-    });
+    await this.request('POST', `/rooms/${code}/close`, undefined, ANY);
   }
 
   teamKeyStatus(): Promise<TeamKeyStatus> {
@@ -92,6 +95,19 @@ export class AdminApi {
   async rotateTeamKey(teamKey?: string): Promise<string> {
     const body = teamKey === undefined ? undefined : { teamKey };
     return (await this.request('POST', '/team-key/rotate', body, teamKeyRotated)).teamKey;
+  }
+
+  history(before: number | null): Promise<HistoryPage> {
+    const query = before === null ? '' : `?before=${before}`;
+    return this.request('GET', `/history${query}`, undefined, historyPage);
+  }
+
+  async deleteHistory(id: number): Promise<void> {
+    await this.request('DELETE', `/history/${id}`, undefined, ANY);
+  }
+
+  async clearHistory(): Promise<void> {
+    await this.request('DELETE', '/history', undefined, ANY);
   }
 
   audit(before: number | null): Promise<AuditPage> {

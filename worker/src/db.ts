@@ -26,7 +26,7 @@ export interface MenuItem {
 export interface AuditInput {
   email: string;
   action: string;
-  entity: 'restaurant' | 'preset' | 'room' | 'team_key';
+  entity: 'restaurant' | 'preset' | 'room' | 'team_key' | 'history';
   entityId: string | null;
   detail?: Record<string, unknown>;
 }
@@ -275,4 +275,127 @@ export async function storedTeamKey(db: D1Database): Promise<StoredTeamKey | nul
   return row
     ? { checkHash: row.check_hash, rotatedAt: row.rotated_at, rotatedBy: row.rotated_by }
     : null;
+}
+
+// ---------- Lunch history ----------
+
+export async function visitedKeys(db: D1Database): Promise<string[]> {
+  const { results } = await db
+    .prepare('SELECT DISTINCT name_key FROM lunch_history LIMIT 5000')
+    .all<{ name_key: string }>();
+  return results.map((r) => r.name_key);
+}
+
+export async function recordLunch(
+  db: D1Database,
+  lunch: {
+    ref: string;
+    at: number;
+    name: string;
+    categories: string[];
+    respins: number;
+    newPlace: boolean;
+  },
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT OR IGNORE INTO lunch_history
+         (room_ref, decided_at, name, name_key, categories, respins, new_place)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      lunch.ref,
+      lunch.at,
+      lunch.name,
+      restaurantKey(lunch.name),
+      JSON.stringify(lunch.categories),
+      lunch.respins,
+      lunch.newPlace ? 1 : 0,
+    )
+    .run();
+}
+
+export interface HistoryEntry {
+  id: number;
+  decidedAt: number;
+  name: string;
+  categories: string[];
+  respins: number;
+  newPlace: boolean;
+}
+
+interface HistoryRow {
+  id: number;
+  decided_at: number;
+  name: string;
+  categories: string;
+  respins: number;
+  new_place: number;
+}
+
+function historyEntry(r: HistoryRow): HistoryEntry {
+  return {
+    id: r.id,
+    decidedAt: r.decided_at,
+    name: r.name,
+    categories: parseCategories(r.categories),
+    respins: r.respins,
+    newPlace: r.new_place === 1,
+  };
+}
+
+export async function listHistory(
+  db: D1Database,
+  before: number | null,
+  pageSize: number,
+): Promise<HistoryEntry[]> {
+  const { results } = await db
+    .prepare(
+      before === null
+        ? 'SELECT id, decided_at, name, categories, respins, new_place FROM lunch_history ORDER BY id DESC LIMIT ?'
+        : 'SELECT id, decided_at, name, categories, respins, new_place FROM lunch_history WHERE id < ? ORDER BY id DESC LIMIT ?',
+    )
+    .bind(...(before === null ? [pageSize] : [before, pageSize]))
+    .all<HistoryRow>();
+  return results.map(historyEntry);
+}
+
+export interface Stats {
+  total: number;
+  since: number | null;
+  top: { name: string; count: number; lastAt: number }[];
+  recent: { name: string; categories: string[]; decidedAt: number; newPlace: boolean }[];
+}
+
+export async function stats(db: D1Database): Promise<Stats> {
+  const [summary, top, recent] = await db.batch([
+    db.prepare('SELECT count(*) AS total, min(decided_at) AS since FROM lunch_history'),
+    db.prepare(
+      `SELECT name_key, count(*) AS count, max(decided_at) AS last_at,
+              (SELECT name FROM lunch_history h2 WHERE h2.name_key = h.name_key ORDER BY id DESC LIMIT 1) AS name
+         FROM lunch_history h GROUP BY name_key ORDER BY count DESC, last_at DESC LIMIT 10`,
+    ),
+    db.prepare(
+      'SELECT id, decided_at, name, categories, respins, new_place FROM lunch_history ORDER BY id DESC LIMIT 20',
+    ),
+  ]);
+  const s = (summary?.results[0] ?? {}) as { total?: number; since?: number | null };
+  return {
+    total: s.total ?? 0,
+    since: s.since ?? null,
+    top: ((top?.results ?? []) as { name: string; count: number; last_at: number }[]).map((r) => ({
+      name: r.name,
+      count: r.count,
+      lastAt: r.last_at,
+    })),
+    recent: ((recent?.results ?? []) as HistoryRow[]).map((r) => {
+      const e = historyEntry(r);
+      return {
+        name: e.name,
+        categories: e.categories,
+        decidedAt: e.decidedAt,
+        newPlace: e.newPlace,
+      };
+    }),
+  };
 }

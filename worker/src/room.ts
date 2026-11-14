@@ -29,10 +29,11 @@ import {
   type ServerMessage,
   type SocketError,
   respinNeeds,
+  restaurantSlices,
 } from '@lunchrad/shared';
 import { DurableObject } from 'cloudflare:workers';
 import { randomId, randomToken, sha256Base64url } from './crypto.ts';
-import { unregisterRoom, type MenuItem } from './db.ts';
+import { recordLunch, unregisterRoom, type MenuItem } from './db.ts';
 import type { Env } from './env.ts';
 import { buildReel, randomIndex } from './spin.ts';
 
@@ -51,6 +52,12 @@ interface RoomMeta {
   vote: Vote | null;
   /** When the final result was reached; the room closes a while later. */
   finalAt: number | null;
+  /** New-place mode: restaurants that never won get extra slices. */
+  newPlace: boolean;
+  /** Name keys of restaurants the team has ended up at before (from D1, at creation). */
+  visited: string[];
+  /** Random id for this room's history row (room codes can be reused). */
+  ref: string;
 }
 
 interface Vote {
@@ -137,6 +144,9 @@ export class Room extends DurableObject<Env> {
             respins: meta.respins ?? 0,
             vote: meta.vote ?? null,
             finalAt: meta.finalAt ?? null,
+            newPlace: meta.newPlace ?? false,
+            visited: meta.visited ?? [],
+            ref: meta.ref ?? randomId(),
           }
         : null;
       const stored = await ctx.storage.list<Participant>({ prefix: 'p:' });
@@ -156,7 +166,12 @@ export class Room extends DurableObject<Env> {
   // ---------- RPC from the Worker ----------
 
   /** `menu` is the chosen preset, read from D1 by the Worker; checked again here. */
-  async init(code: string, rawName: string, menu: readonly MenuItem[]): Promise<InitResult> {
+  async init(
+    code: string,
+    rawName: string,
+    menu: readonly MenuItem[],
+    visited: readonly string[] = [],
+  ): Promise<InitResult> {
     if (this.meta) return { ok: false, error: 'exists' };
     const name = normalizeName(rawName);
     if (!name) return { ok: false, error: 'invalid_name' };
@@ -176,6 +191,9 @@ export class Room extends DurableObject<Env> {
       respins: 0,
       vote: null,
       finalAt: null,
+      newPlace: false,
+      visited: [...new Set(visited)].slice(0, 5000),
+      ref: randomId(),
     };
     await this.persistMeta();
     await this.seedRestaurants(now, menu);
@@ -306,6 +324,9 @@ export class Room extends DurableObject<Env> {
         return;
       case 'start_spin':
         await this.handleStartSpin(ws, pid);
+        return;
+      case 'set_new_place':
+        await this.handleNewPlace(ws, pid, parsed.on);
         return;
       case 'vote':
         await this.handleVote(ws, pid, parsed.choice);
@@ -540,6 +561,23 @@ export class Room extends DurableObject<Env> {
     this.broadcastState();
   }
 
+  /** Host switches new-place mode; only before the spin, like boosts. */
+  private async handleNewPlace(ws: WebSocket, pid: string, on: boolean): Promise<void> {
+    const meta = this.meta;
+    if (!meta) return;
+    if (!this.isHost(pid)) return this.reject(ws, 'not_host');
+    if (meta.phase !== 'lobby') return this.reject(ws, 'locked');
+    if (meta.newPlace === on) return;
+    meta.newPlace = on;
+    await this.persistMeta();
+    this.broadcastEvent({ type: 'new_place_changed', on });
+    this.broadcastState();
+  }
+
+  private isVisited(name: string): boolean {
+    return this.meta?.visited.includes(restaurantKey(name)) ?? false;
+  }
+
   /** Host pulls the lever. The list and boosts lock and the reel runs. */
   private async handleStartSpin(ws: WebSocket, pid: string): Promise<void> {
     const meta = this.meta;
@@ -567,7 +605,10 @@ export class Room extends DurableObject<Env> {
       }
     }
     const reel = buildReel(
-      [...this.restaurants.keys()].map((id) => ({ id, slices: 1 + (boosts.get(id) ?? 0) })),
+      [...this.restaurants.values()].map((r) => ({
+        id: r.id,
+        slices: restaurantSlices(boosts.get(r.id) ?? 0, meta.newPlace, this.isVisited(r.name)),
+      })),
     );
     const winnerIndex = randomIndex(reel.length);
     meta.phase = 'spinning';
@@ -667,6 +708,20 @@ export class Room extends DurableObject<Env> {
     await this.persistMeta();
     this.broadcastState();
     await this.scheduleAlarm();
+    const winner = meta.spin ? this.restaurants.get(meta.spin.winnerId) : undefined;
+    if (winner) {
+      // Best effort: the room works without it; a retry of the alarm writes nothing twice.
+      await recordLunch(this.env.DB, {
+        ref: meta.ref,
+        at: now,
+        name: winner.name,
+        categories: winner.categories,
+        respins: meta.respins,
+        newPlace: meta.newPlace,
+      }).catch((err: unknown) =>
+        console.error('Could not record lunch', { name: (err as Error).name }),
+      );
+    }
   }
 
   /** Removes a restaurant from this room and clears boosts on it. Returns who lost a boost. */
@@ -903,9 +958,11 @@ export class Room extends DurableObject<Env> {
           categories: r.categories,
           mapsUrl: r.mapsUrl,
           addedBy: r.addedBy,
+          visited: this.isVisited(r.name),
         })),
       phase: meta.phase,
       respinsLeft: Math.max(0, LIMITS.maxRespins - meta.respins),
+      newPlace: meta.newPlace,
       vote: meta.vote
         ? {
             eligible: meta.vote.eligible,

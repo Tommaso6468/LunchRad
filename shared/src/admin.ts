@@ -156,3 +156,37 @@ export const presetSummary = z.strictObject({
 });
 export type PresetSummary = z.infer<typeof presetSummary>;
 export const presetList = z.strictObject({ presets: z.array(presetSummary) });
+
+// ---------- Lunch history (M7) ----------
+
+export const HISTORY_PAGE_SIZE = 50;
+
+export const statsResponse = z.strictObject({
+  total: z.number(),
+  since: z.nullable(z.number()),
+  top: z.array(z.strictObject({ name: z.string(), count: z.number(), lastAt: z.number() })),
+  recent: z.array(
+    z.strictObject({
+      name: z.string(),
+      categories: z.array(z.string()),
+      decidedAt: z.number(),
+      newPlace: z.boolean(),
+    }),
+  ),
+});
+export type StatsResponse = z.infer<typeof statsResponse>;
+
+export const historyEntry = z.strictObject({
+  id: z.number(),
+  decidedAt: z.number(),
+  name: z.string(),
+  categories: z.array(z.string()),
+  respins: z.number(),
+  newPlace: z.boolean(),
+});
+export type HistoryEntry = z.infer<typeof historyEntry>;
+export const historyPage = z.strictObject({
+  entries: z.array(historyEntry),
+  nextBefore: z.nullable(z.number()),
+});
+export type HistoryPage = z.infer<typeof historyPage>;

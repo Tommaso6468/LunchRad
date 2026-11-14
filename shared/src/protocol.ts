@@ -41,6 +41,8 @@ export const LIMITS = {
   /** Per-socket message budget: this many messages per window. */
   socketMessagesPerWindow: 20,
   socketWindowMs: 10_000,
+  /** Extra slices for a restaurant that has never won, while new-place mode is on. */
+  newPlaceSlices: 1,
   /** Team sessions (after entering the team key) last this long. */
   teamSessionMs: 90 * 24 * 60 * 60_000,
 } as const;
@@ -121,6 +123,7 @@ export const clientMessage = z.discriminatedUnion('type', [
   // No parameters on purpose: the client cannot influence the result.
   z.strictObject({ type: z.literal('start_spin') }),
   z.strictObject({ type: z.literal('vote'), choice: z.enum(['yes', 'no']) }),
+  z.strictObject({ type: z.literal('set_new_place'), on: z.boolean() }),
 ]);
 export type ClientMessage = z.infer<typeof clientMessage>;
 
@@ -144,6 +147,8 @@ export const restaurantView = z.strictObject({
   mapsUrl: z.nullable(z.string().check(z.maxLength(MAPS_URL_MAX))),
   /** Participant who added it in this session; null for preset restaurants. */
   addedBy: z.nullable(participantId),
+  /** False for a restaurant the team has never ended up at (by name). */
+  visited: z.boolean(),
 });
 export type RestaurantView = z.infer<typeof restaurantView>;
 export type ParticipantView = z.infer<typeof participantView>;
@@ -162,6 +167,8 @@ export const roomState = z.strictObject({
   phase: z.enum(['lobby', 'spinning', 'voting', 'result']),
   /** Respins still allowed in this room. */
   respinsLeft: z.number(),
+  /** New-place mode: restaurants that never won get extra slices. */
+  newPlace: z.boolean(),
   vote: z.nullable(
     z.strictObject({
       /** Participants who may vote: everyone connected when the vote opened. */
@@ -193,6 +200,15 @@ export const roomState = z.strictObject({
 });
 export type SpinView = NonNullable<RoomState['spin']>;
 export type VoteView = NonNullable<RoomState['vote']>;
+
+/**
+ * Slices on the wheel for one restaurant: one, plus one per boost, plus the
+ * new-place bonus. The server builds the reel with this; the list shows the
+ * same numbers.
+ */
+export function restaurantSlices(boosts: number, newPlace: boolean, visited: boolean): number {
+  return 1 + boosts + (newPlace && !visited ? LIMITS.newPlaceSlices : 0);
+}
 
 /** A respin needs strictly more than half of the eligible voters. */
 export function respinNeeds(eligible: number): number {
@@ -235,6 +251,7 @@ export const roomEvent = z.discriminatedUnion('type', [
     removedName: z.nullable(z.string()),
   }),
   z.strictObject({ type: z.literal('host_changed'), hostId: participantId, auto: z.boolean() }),
+  z.strictObject({ type: z.literal('new_place_changed'), on: z.boolean() }),
   z.strictObject({ type: z.literal('kicked'), name: z.string() }),
   z.strictObject({
     type: z.literal('boosted'),
