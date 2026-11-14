@@ -58,8 +58,8 @@ interface RoomMeta {
   visited: string[];
   /** Random id for this room's history row (room codes can be reused). */
   ref: string;
-  /** Hash of the one valid big-screen token, if the host made one. */
-  displayHash: string | null;
+  /** Hashes of big-screen tokens, oldest first (at most LIMITS.maxDisplays). */
+  displays: string[];
 }
 
 interface Vote {
@@ -105,6 +105,8 @@ interface SocketAttachment {
   openedAt: number;
   /** A big screen: read-only, not a participant, never counted or eligible. */
   display?: boolean;
+  /** Which display token it used, so replacing that token closes it. */
+  displayHash?: string;
 }
 
 export interface Credentials {
@@ -151,7 +153,7 @@ export class Room extends DurableObject<Env> {
             newPlace: meta.newPlace ?? false,
             visited: meta.visited ?? [],
             ref: meta.ref ?? randomId(),
-            displayHash: meta.displayHash ?? null,
+            displays: meta.displays ?? [],
           }
         : null;
       const stored = await ctx.storage.list<Participant>({ prefix: 'p:' });
@@ -199,7 +201,7 @@ export class Room extends DurableObject<Env> {
       newPlace: false,
       visited: [...new Set(visited)].slice(0, 5000),
       ref: randomId(),
-      displayHash: null,
+      displays: [],
     };
     await this.persistMeta();
     await this.seedRestaurants(now, menu);
@@ -211,6 +213,29 @@ export class Room extends DurableObject<Env> {
       createdAt: now,
       expiresAt: this.meta.expiresAt,
     };
+  }
+
+  /**
+   * A big screen joins with the room code alone: no name, not a participant.
+   * The Worker has already checked the team session. Returns a read-only token.
+   */
+  async addDisplay(): Promise<
+    { ok: true; token: string } | { ok: false; error: 'room_not_found' }
+  > {
+    const meta = this.meta;
+    if (!meta) return { ok: false, error: 'room_not_found' };
+    const token = randomToken();
+    meta.displays.push(await sha256Base64url(token));
+    while (meta.displays.length > LIMITS.maxDisplays) {
+      const dropped = meta.displays.shift();
+      for (const ws of this.ctx.getWebSockets()) {
+        if (this.attachment(ws).displayHash === dropped) {
+          this.safeClose(ws, CLOSE_CODES.unauthorized, 'display replaced');
+        }
+      }
+    }
+    await this.persistMeta();
+    return { ok: true, token };
   }
 
   async join(rawName: string): Promise<JoinResult> {
@@ -341,9 +366,6 @@ export class Room extends DurableObject<Env> {
       case 'start_spin':
         await this.handleStartSpin(ws, pid);
         return;
-      case 'create_display':
-        await this.handleCreateDisplay(ws, pid);
-        return;
       case 'set_new_place':
         await this.handleNewPlace(ws, pid, parsed.on);
         return;
@@ -445,22 +467,6 @@ export class Room extends DurableObject<Env> {
     await this.scheduleAlarm();
   }
 
-  /** The host makes a big-screen link. The previous one stops working at once. */
-  private async handleCreateDisplay(ws: WebSocket, pid: string): Promise<void> {
-    const meta = this.meta;
-    if (!meta) return;
-    if (!this.isHost(pid)) return this.reject(ws, 'not_host');
-    const token = randomToken();
-    meta.displayHash = await sha256Base64url(token);
-    await this.persistMeta();
-    for (const other of this.ctx.getWebSockets()) {
-      if (this.attachment(other).display) {
-        this.safeClose(other, CLOSE_CODES.unauthorized, 'display replaced');
-      }
-    }
-    this.send(ws, { type: 'display_link', token });
-  }
-
   private async handleDisplayHello(
     ws: WebSocket,
     att: SocketAttachment,
@@ -468,12 +474,13 @@ export class Room extends DurableObject<Env> {
   ): Promise<void> {
     const meta = this.meta;
     if (!meta || att.pid || att.display) return;
-    if (meta.displayHash === null || (await sha256Base64url(token)) !== meta.displayHash) {
+    const hash = await sha256Base64url(token);
+    if (!meta.displays.includes(hash)) {
       this.send(ws, { type: 'error', error: 'unauthorized' });
       this.safeClose(ws, CLOSE_CODES.unauthorized, 'unauthorized');
       return;
     }
-    ws.serializeAttachment({ ...att, display: true } satisfies SocketAttachment);
+    ws.serializeAttachment({ ...att, display: true, displayHash: hash } satisfies SocketAttachment);
     this.send(ws, { type: 'display_welcome', state: this.stateView() });
     await this.scheduleAlarm();
   }

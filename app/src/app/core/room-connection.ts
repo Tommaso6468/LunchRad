@@ -54,8 +54,6 @@ export class RoomConnection {
     private readonly options: {
       /** A big screen: authenticates with a display token and only watches. */
       display?: boolean;
-      /** The host asked for a big-screen link; this is its token. */
-      onDisplayLink?: (token: string) => void;
     } = {},
   ) {
     document.addEventListener('visibilitychange', this.onVisible);
@@ -145,9 +143,6 @@ export class RoomConnection {
         break;
       case 'error':
         this.onError(message.error);
-        break;
-      case 'display_link':
-        this.options.onDisplayLink?.(message.token);
         break;
       case 'pong':
         break;

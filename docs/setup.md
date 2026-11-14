@@ -223,7 +223,8 @@ rooms keep running.
 
 ## 8. Big screen (M9)
 
-In a room, the host taps **Toon op groot scherm** and opens the link on the
-laptop or TV in the room (or copies it there). That device enters the team
-key once. Tap **Volledig scherm** once; the screen stays awake by itself
-where the browser supports it. A new link stops the previous one.
+On the laptop or TV in the room: open Lunchrad, enter the team key once,
+type the room code and tap the square monitor button next to **Meedoen**
+(the name is not needed). Tap **Volledig scherm** once; the screen stays
+awake by itself where the browser supports it. The screen does not appear
+under "Personen" and cannot do anything in the room.

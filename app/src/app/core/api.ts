@@ -2,11 +2,13 @@ import { Injectable, inject } from '@angular/core';
 import {
   apiErrorBody,
   configResponse,
+  displayCredentials,
   presetList,
   statsResponse,
   roomCredentials,
   sessionResponse,
   type ApiError,
+  type DisplayCredentials,
   type PresetSummary,
   type StatsResponse,
   type RoomCredentials,
@@ -52,6 +54,17 @@ export class Api {
 
   async presets(): Promise<PresetSummary[]> {
     return (await this.request('GET', '/api/presets', undefined, presetList, true)).presets;
+  }
+
+  /** Join as a big screen: just the code. */
+  joinDisplay(code: string): Promise<DisplayCredentials> {
+    return this.request(
+      'POST',
+      `/api/rooms/${encodeURIComponent(code)}/display`,
+      undefined,
+      displayCredentials,
+      true,
+    );
   }
 
   joinRoom(code: string, name: string): Promise<RoomCredentials> {

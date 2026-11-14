@@ -11,18 +11,7 @@ export const nl = {
   tagline: 'Waar gaan we lunchen?',
 
   display: {
-    button: 'Toon op groot scherm',
-    link: {
-      title: 'Groot scherm',
-      intro:
-        'Open deze link op de laptop of tv in de ruimte. Het scherm volgt de kamer, maar kan niets doen: geen boosts, geen stem.',
-      linkLabel: 'Link voor het grote scherm',
-      open: 'Openen',
-      copy: 'Link kopiëren',
-      copied: 'Link gekopieerd',
-      note: 'Het apparaat moet de teamcode kennen. Een nieuwe link maakt de vorige ongeldig.',
-      close: 'Sluiten',
-    },
+    joinAsScreenLabel: 'Meedoen als groot scherm (alleen de kamercode is nodig)',
     lobbyTitle: 'Doe mee',
     scan: 'Scan de code of ga naar',
     onWheel: 'Op het rad',
@@ -39,9 +28,10 @@ export const nl = {
       minutes <= 1 ? 'De kamer sluit binnen een minuut' : `De kamer sluit over ${minutes} minuten`,
     boosts: (n: number) => (n === 1 ? '1 boost' : `${n} boosts`),
     fullscreen: 'Volledig scherm',
-    noToken: 'Deze link is niet compleet. Vraag de host om een nieuwe link voor het grote scherm.',
+    noToken: 'Deze kamer bestaat niet (meer). Controleer de code.',
     closed: 'De kamer is gesloten.',
-    replaced: 'Deze link werkt niet meer. Vraag de host om een nieuwe link voor het grote scherm.',
+    replaced:
+      'Dit scherm is vervangen door een nieuwer groot scherm. Herlaad om opnieuw mee te kijken.',
     home: 'Naar het begin',
   },
 

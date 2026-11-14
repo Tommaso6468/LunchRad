@@ -58,7 +58,38 @@ import { TeamKeyForm } from './team-key-form';
             (input)="bind(name, $event)"
           />
           <p class="error" role="alert">{{ joinError() }}</p>
-          <button type="submit" class="primary" [disabled]="busy()">{{ t.join.submit }}</button>
+          <div class="join-actions">
+            <button type="submit" class="primary" [disabled]="busy()">{{ t.join.submit }}</button>
+            <!-- Big screen: joins with the code only; the name is not used. -->
+            <button
+              type="button"
+              class="screen-button"
+              [disabled]="busy()"
+              [attr.aria-label]="t.display.joinAsScreenLabel"
+              [title]="t.display.joinAsScreenLabel"
+              (click)="joinAsScreen()"
+            >
+              <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">
+                <rect
+                  x="2.5"
+                  y="4"
+                  width="19"
+                  height="12.5"
+                  rx="2"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                />
+                <path
+                  d="M9 20.5h6M12 16.5v4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </button>
+          </div>
         </form>
       </section>
 
@@ -206,6 +237,21 @@ export class Home {
     } catch {
       this.presets.set([]);
     }
+  }
+
+  /** Join as a big screen: only the code counts; whatever is in the name field is ignored. */
+  protected async joinAsScreen(): Promise<void> {
+    this.joinError.set('');
+    const code = normalizeRoomCode(this.code());
+    if (!code) {
+      this.joinError.set(nl.join.invalidCode);
+      return;
+    }
+    await this.run(this.joinError, async () => {
+      const creds = await this.api.joinDisplay(code);
+      this.store.saveDisplayToken(creds.code, creds.token);
+      void this.router.navigate(['/scherm', creds.code]);
+    });
   }
 
   private enter(creds: { code: string; participantId: string; token: string }, name: string): void {
