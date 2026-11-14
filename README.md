@@ -4,7 +4,7 @@ Kies samen waar jullie gaan lunchen. A realtime lunch wheel for a small team:
 join a room with a code, add and boost restaurants, let the host spin the
 arcade reel, and vote on a respin.
 
-Status: **M8 — Hardening and launch**. See the [security assessment](docs/security-assessment.md) and the [runbook](docs/runbook.md). Teams enter a shared team key once,
+Status: **M9 — Big-screen mode**. See the [security assessment](docs/security-assessment.md) and the [runbook](docs/runbook.md). Teams enter a shared team key once,
 create rooms (with a bot check) or join with a code, QR code or link, and see
 each other live. The host can hand over the role, remove people and close the
 room; rooms close themselves after 30 minutes. Everyone can add restaurants

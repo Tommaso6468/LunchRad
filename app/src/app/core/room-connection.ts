@@ -51,12 +51,19 @@ export class RoomConnection {
     private readonly teamToken: () => string | null,
     private readonly onEvent: (event: RoomEvent) => void,
     private readonly onError: (error: SocketError) => void = () => undefined,
+    private readonly options: {
+      /** A big screen: authenticates with a display token and only watches. */
+      display?: boolean;
+      /** The host asked for a big-screen link; this is its token. */
+      onDisplayLink?: (token: string) => void;
+    } = {},
   ) {
     document.addEventListener('visibilitychange', this.onVisible);
     this.open();
   }
 
-  send(message: Exclude<ClientMessage, { type: 'hello' | 'ping' }>): void {
+  send(message: Exclude<ClientMessage, { type: 'hello' | 'display_hello' | 'ping' }>): void {
+    if (this.options.display) return; // A big screen only watches.
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(message));
     }
@@ -90,7 +97,8 @@ export class RoomConnection {
     this.socket = socket;
 
     socket.addEventListener('open', () => {
-      socket.send(JSON.stringify({ type: 'hello', token: this.credentials.token }));
+      const type = this.options.display ? 'display_hello' : 'hello';
+      socket.send(JSON.stringify({ type, token: this.credentials.token }));
     });
     socket.addEventListener('message', (event) => {
       if (socket === this.socket) this.handle(event.data);
@@ -114,8 +122,9 @@ export class RoomConnection {
 
     switch (message.type) {
       case 'welcome':
+      case 'display_welcome':
         this.attempts = 0;
-        this.you.set(message.you);
+        this.you.set(message.type === 'welcome' ? message.you : null);
         this.state.set(message.state);
         this.status.set('open');
         clearInterval(this.pingTimer);
@@ -136,6 +145,9 @@ export class RoomConnection {
         break;
       case 'error':
         this.onError(message.error);
+        break;
+      case 'display_link':
+        this.options.onDisplayLink?.(message.token);
         break;
       case 'pong':
         break;

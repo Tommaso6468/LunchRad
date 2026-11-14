@@ -715,3 +715,9 @@ app-status:has(.app-status:empty) {
   color: var(--muted);
   font-size: 0.9rem;
 }
+
+/* The big screen uses the whole TV, not the phone column. */
+.shell:has(app-big-screen) {
+  max-width: none;
+  padding: 2.5vh 3vw;
+}

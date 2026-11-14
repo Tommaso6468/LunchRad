@@ -10,6 +10,41 @@ export const nl = {
   appName: 'Lunchrad',
   tagline: 'Waar gaan we lunchen?',
 
+  display: {
+    button: 'Toon op groot scherm',
+    link: {
+      title: 'Groot scherm',
+      intro:
+        'Open deze link op de laptop of tv in de ruimte. Het scherm volgt de kamer, maar kan niets doen: geen boosts, geen stem.',
+      linkLabel: 'Link voor het grote scherm',
+      open: 'Openen',
+      copy: 'Link kopiëren',
+      copied: 'Link gekopieerd',
+      note: 'Het apparaat moet de teamcode kennen. Een nieuwe link maakt de vorige ongeldig.',
+      close: 'Sluiten',
+    },
+    lobbyTitle: 'Doe mee',
+    scan: 'Scan de code of ga naar',
+    onWheel: 'Op het rad',
+    joined: (n: number) => (n === 1 ? '1 persoon doet mee' : `${n} personen doen mee`),
+    nobodyYet: 'Nog niemand. Scan de QR-code!',
+    waiting: 'Wachten op de host…',
+    spinning: 'Het rad draait…',
+    candidate: 'Het rad koos',
+    voteTitle: 'Opnieuw draaien?',
+    voteHint: 'Stem op je telefoon.',
+    voteTally: (yes: number, needs: number) => `${yes} van de ${needs} ja-stemmen`,
+    final: 'We gaan naar',
+    closesIn: (minutes: number) =>
+      minutes <= 1 ? 'De kamer sluit binnen een minuut' : `De kamer sluit over ${minutes} minuten`,
+    boosts: (n: number) => (n === 1 ? '1 boost' : `${n} boosts`),
+    fullscreen: 'Volledig scherm',
+    noToken: 'Deze link is niet compleet. Vraag de host om een nieuwe link voor het grote scherm.',
+    closed: 'De kamer is gesloten.',
+    replaced: 'Deze link werkt niet meer. Vraag de host om een nieuwe link voor het grote scherm.',
+    home: 'Naar het begin',
+  },
+
   stats: {
     title: 'Eerdere lunches',
     link: 'Eerdere lunches bekijken',

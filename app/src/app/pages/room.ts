@@ -8,6 +8,7 @@ import {
   input,
   signal,
   untracked,
+  viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
@@ -25,6 +26,7 @@ import { Toasts } from '../core/toasts';
 import { nl } from '../i18n/nl';
 import { bindInput, errorText } from '../ui/forms';
 import { AddRestaurantDialog, type NewRestaurant } from '../ui/add-restaurant-dialog';
+import { DisplayLinkDialog } from '../ui/display-link-dialog';
 import { ParticipantList } from '../ui/participant-list';
 import { QrCode } from '../ui/qr-code';
 import { RestaurantList } from '../ui/restaurant-list';
@@ -44,6 +46,7 @@ import { TeamKeyForm } from './team-key-form';
     AddRestaurantDialog,
     ParticipantList,
     SpinOverlay,
+    DisplayLinkDialog,
   ],
   template: `
     @let validCode = roomCode();
@@ -85,6 +88,11 @@ import { TeamKeyForm } from './team-key-form';
             >
               {{ showQr() ? t.room.hideQr : t.room.showQr }}
             </button>
+            @if (conn.isHost()) {
+              <button type="button" class="secondary small" (click)="askDisplayLink()">
+                {{ t.display.button }}
+              </button>
+            }
             @if (minutesLeft(); as minutes) {
               <p class="muted closes">{{ t.room.closesIn(minutes) }}</p>
             }
@@ -163,6 +171,7 @@ import { TeamKeyForm } from './team-key-form';
             />
           </div>
           <app-add-restaurant-dialog #addDialog (added)="addRestaurant($event)" />
+          <app-display-link-dialog />
 
           <div
             id="panel-people"
@@ -276,7 +285,8 @@ export class Room {
   protected readonly minutesLeft = computed(() => {
     const closesAt = this.closesAt();
     if (closesAt === null) return null;
-    return Math.max(1, Math.ceil((closesAt - this.now()) / 60_000));
+    // The clock signal ticks every 15 s and can be older than closesAt itself.
+    return Math.max(1, Math.ceil((closesAt - Math.max(this.now(), Date.now())) / 60_000));
   });
 
   constructor() {
@@ -366,6 +376,16 @@ export class Room {
     this.connection()?.send({ type: 'start_spin' });
   }
 
+  private readonly displayDialog = viewChild(DisplayLinkDialog);
+
+  protected askDisplayLink(): void {
+    this.connection()?.send({ type: 'create_display' });
+  }
+
+  private showDisplayLink(code: string, token: string): void {
+    this.displayDialog()?.show(`${location.origin}/scherm/${code}#${token}`);
+  }
+
   protected setNewPlace(on: boolean): void {
     this.connection()?.send({ type: 'set_new_place', on });
   }
@@ -413,6 +433,7 @@ export class Room {
         () => this.store.teamToken(),
         (event) => this.onEvent(event),
         (error) => this.onSocketError(error),
+        { onDisplayLink: (token) => this.showDisplayLink(creds.code, token) },
       ),
     );
   }
