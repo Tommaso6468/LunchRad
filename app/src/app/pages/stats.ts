@@ -5,17 +5,21 @@ import { Api, ApiFailure } from '../core/api';
 import { DeviceStore } from '../core/storage';
 import { nl } from '../i18n/nl';
 import { errorText } from '../ui/forms';
+import { ThemeToggle } from '../ui/theme-toggle';
 import { TeamKeyForm } from './team-key-form';
 
 /** Where the team ended up: most picked and the latest lunches. Names and dates only. */
 @Component({
   selector: 'app-stats',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, TeamKeyForm],
+  imports: [RouterLink, TeamKeyForm, ThemeToggle],
   template: `
     <header class="stats-head">
       <h1 class="page-title">{{ t.title }}</h1>
-      <a routerLink="/" class="button secondary small-link">{{ t.back }}</a>
+      <span class="head-right">
+        <app-theme-toggle />
+        <a routerLink="/" class="button secondary small-link">{{ t.back }}</a>
+      </span>
     </header>
 
     @if (!hasTeam()) {
@@ -80,6 +84,11 @@ import { TeamKeyForm } from './team-key-form';
       justify-content: space-between;
       gap: 0.5rem;
       padding-top: 0.5rem;
+    }
+    .head-right {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
     }
     .top,
     .recent {

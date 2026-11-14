@@ -13,7 +13,7 @@ import { respinNeeds, type VoteView } from '@lunchrad/shared';
 import { nl } from '../i18n/nl';
 
 /**
- * "Opnieuw draaien?" with a 30-second countdown. The server decides when the
+ * "Opnieuw draaien?" with a one-minute countdown. The server decides when the
  * vote ends; the countdown here only shows the time it reported.
  */
 @Component({

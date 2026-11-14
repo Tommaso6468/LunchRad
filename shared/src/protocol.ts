@@ -19,7 +19,7 @@ export const LIMITS = {
   /** How long the reel animation runs, the same on every phone. */
   spinDurationMs: 5000,
   /** How long the respin vote stays open. */
-  voteDurationMs: 30_000,
+  voteDurationMs: 60_000,
   /** At most this many respins per room. */
   maxRespins: 3,
   /** The room closes this long after the final result. */

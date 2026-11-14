@@ -15,12 +15,13 @@ import { DeviceStore } from '../core/storage';
 import { Turnstile } from '../core/turnstile';
 import { nl } from '../i18n/nl';
 import { bindInput, errorText } from '../ui/forms';
+import { ThemeToggle } from '../ui/theme-toggle';
 import { TeamKeyForm } from './team-key-form';
 
 @Component({
   selector: 'app-home',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TeamKeyForm, RouterLink],
+  imports: [TeamKeyForm, RouterLink, ThemeToggle],
   template: `
     <header class="masthead">
       <h1 class="wordmark">{{ t.appName }}</h1>
@@ -106,6 +107,7 @@ import { TeamKeyForm } from './team-key-form';
     <footer class="home-foot">
       <!-- A real page load, not an in-app route: Cloudflare Access must see it to ask for the login. -->
       <a href="/admin" class="admin-link">{{ t.admin.entry }}</a>
+      <app-theme-toggle />
     </footer>
   `,
 })

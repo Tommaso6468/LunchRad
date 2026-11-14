@@ -56,7 +56,7 @@ describe('respin threshold', () => {
 });
 
 describe('the respin vote', () => {
-  it('opens after the spin for everyone connected, with a 30 s timer', async () => {
+  it('opens after the spin for everyone connected, with a one-minute timer', async () => {
     const { people, voting } = await votingRoom(3);
     expect(voting.vote).toMatchObject({
       eligible: expect.arrayContaining(people.map((p) => p.participantId)),

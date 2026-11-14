@@ -27,6 +27,7 @@ import { nl } from '../i18n/nl';
 import { bindInput, errorText } from '../ui/forms';
 import { AddRestaurantDialog, type NewRestaurant } from '../ui/add-restaurant-dialog';
 import { DisplayLinkDialog } from '../ui/display-link-dialog';
+import { ThemeToggle } from '../ui/theme-toggle';
 import { ParticipantList } from '../ui/participant-list';
 import { QrCode } from '../ui/qr-code';
 import { RestaurantList } from '../ui/restaurant-list';
@@ -47,6 +48,7 @@ import { TeamKeyForm } from './team-key-form';
     ParticipantList,
     SpinOverlay,
     DisplayLinkDialog,
+    ThemeToggle,
   ],
   template: `
     @let validCode = roomCode();
@@ -215,6 +217,7 @@ import { TeamKeyForm } from './team-key-form';
             } @else {
               <button type="button" class="secondary" (click)="leave()">{{ t.room.leave }}</button>
             }
+            <app-theme-toggle />
           </footer>
         }
       }

@@ -60,6 +60,12 @@ export const nl = {
     newPlace: 'nieuwe plek',
   },
 
+  theme: {
+    short: 'Thema',
+    names: { system: 'automatisch', light: 'licht', dark: 'donker' },
+    label: (current: string) => `Thema: ${current}. Tik om te wisselen.`,
+  },
+
   app: {
     offline: 'Geen internet. Lunchrad werkt weer zodra je verbinding hebt.',
     updateReady: 'Er is een nieuwe versie van Lunchrad.',

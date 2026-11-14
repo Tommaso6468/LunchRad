@@ -26,6 +26,7 @@ import { nl } from '../i18n/nl';
 import { QrCode } from '../ui/qr-code';
 import { Reel } from '../ui/reel';
 import { RoomCode } from '../ui/room-code';
+import { ThemeToggle } from '../ui/theme-toggle';
 import { TeamKeyForm } from './team-key-form';
 
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
@@ -53,7 +54,7 @@ interface WakeLock {
 @Component({
   selector: 'app-big-screen',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RoomCode, QrCode, Reel, TeamKeyForm, RouterLink],
+  imports: [RoomCode, QrCode, Reel, TeamKeyForm, RouterLink, ThemeToggle],
   template: `
     @let validCode = roomCode();
     @if (!validCode || !token()) {
@@ -76,6 +77,7 @@ interface WakeLock {
             <app-room-code [code]="validCode" [label]="codeLabel" size="small" />
           }
           <span class="status">{{ statusLine(s) }}</span>
+          <app-theme-toggle />
           @if (!fullscreen()) {
             <button type="button" class="secondary small" (click)="goFullscreen()">
               {{ t.fullscreen }}

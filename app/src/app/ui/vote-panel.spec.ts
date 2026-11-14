@@ -10,7 +10,7 @@ const vote: VoteView = {
   eligible: [SANNE, TOM],
   yes: [TOM],
   no: [],
-  durationMs: 30_000,
+  durationMs: 60_000,
   remainingMs: 12_400,
 };
 
@@ -28,7 +28,7 @@ describe('VotePanel', () => {
     const { el } = await render(SANNE);
     expect(el.textContent).toContain('Nog 13 seconden');
     expect(el.textContent).toContain('1 van de 2 ja-stemmen');
-    expect(el.querySelector('[role="progressbar"]')?.getAttribute('aria-valuemax')).toBe('30');
+    expect(el.querySelector('[role="progressbar"]')?.getAttribute('aria-valuemax')).toBe('60');
   });
 
   it('marks your own vote as pressed', async () => {
