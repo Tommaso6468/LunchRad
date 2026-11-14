@@ -33,9 +33,11 @@ for (const file of [...walk(OUT)].sort()) {
   files.push(`/${path}`);
   hash.update(path).update(readFileSync(file));
 }
+const template = readFileSync(join(ROOT, 'app/sw/sw.js'), 'utf8');
+// A change to the worker's own logic is a new version too.
+hash.update(template);
 const version = hash.digest('hex').slice(0, 16);
 
-const template = readFileSync(join(ROOT, 'app/sw/sw.js'), 'utf8');
 const output = template
   .replace("'__VERSION__'", JSON.stringify(version))
   .replace('__PRECACHE__', JSON.stringify(files, null, 2));
