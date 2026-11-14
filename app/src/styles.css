@@ -759,3 +759,24 @@ app-status:has(.app-status:empty) {
   padding: 0.3rem 0.75rem;
   font-size: 0.9rem;
 }
+
+.join-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.join-actions .primary {
+  flex: 1;
+}
+
+/* Square, page-coloured: the quiet way in for a TV or laptop. */
+.screen-button {
+  flex: 0 0 3rem;
+  width: 3rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--ink);
+}

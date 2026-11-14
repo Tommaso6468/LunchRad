@@ -11,6 +11,7 @@ const KEYS = {
   name: 'lunchrad.name',
   sound: 'lunchrad.sound',
   roomPrefix: 'lunchrad.room.',
+  displayPrefix: 'lunchrad.display.',
 } as const;
 
 interface TeamSession {
@@ -99,6 +100,21 @@ export class DeviceStore {
 
   forgetRoom(code: string): void {
     remove(KEYS.roomPrefix + code);
+  }
+
+  /** Big-screen token for a room on this device. */
+  displayToken(code: string): string | null {
+    const stored = read<{ token: string; savedAt: number }>(KEYS.displayPrefix + code);
+    if (!stored || typeof stored.token !== 'string') return null;
+    return Date.now() - stored.savedAt > LIMITS.roomLifetimeMs ? null : stored.token;
+  }
+
+  saveDisplayToken(code: string, token: string): void {
+    write(KEYS.displayPrefix + code, { token, savedAt: Date.now() });
+  }
+
+  forgetDisplayToken(code: string): void {
+    remove(KEYS.displayPrefix + code);
   }
 
   /** Rooms live at most 30 minutes; drop credentials that cannot be valid any more. */

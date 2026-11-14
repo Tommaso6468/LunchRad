@@ -43,6 +43,8 @@ export const LIMITS = {
   socketWindowMs: 10_000,
   /** Extra slices for a restaurant that has never won, while new-place mode is on. */
   newPlaceSlices: 1,
+  /** Big screens per room; a new one replaces the oldest. */
+  maxDisplays: 5,
   /** Team sessions (after entering the team key) last this long. */
   teamSessionMs: 90 * 24 * 60 * 60_000,
 } as const;
@@ -69,6 +71,10 @@ export const createRoomRequest = z.strictObject({
   presetId: z.optional(z.string().check(z.regex(/^[a-f0-9]{16}$/))),
 });
 export const joinRoomRequest = z.strictObject({ name });
+
+/** A big screen's credentials: no participant, just a read-only token. */
+export const displayCredentials = z.strictObject({ code: roomCode, token });
+export type DisplayCredentials = z.infer<typeof displayCredentials>;
 
 export const roomCredentials = z.strictObject({
   code: roomCode,
@@ -126,8 +132,6 @@ export const clientMessage = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('start_spin') }),
   z.strictObject({ type: z.literal('vote'), choice: z.enum(['yes', 'no']) }),
   z.strictObject({ type: z.literal('set_new_place'), on: z.boolean() }),
-  /** Host asks for a big-screen link; any earlier one stops working. */
-  z.strictObject({ type: z.literal('create_display') }),
 ]);
 export type ClientMessage = z.infer<typeof clientMessage>;
 
@@ -281,8 +285,6 @@ export const serverMessage = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('welcome'), you: participantId, state: roomState }),
   /** To a big screen: it sees everything and can do nothing. */
   z.strictObject({ type: z.literal('display_welcome'), state: roomState }),
-  /** Only to the host who asked: the token for /scherm/CODE#token. */
-  z.strictObject({ type: z.literal('display_link'), token }),
   z.strictObject({ type: z.literal('state'), state: roomState }),
   z.strictObject({ type: z.literal('event'), event: roomEvent }),
   z.strictObject({ type: z.literal('error'), error: z.enum(SOCKET_ERRORS) }),

@@ -157,6 +157,19 @@ api.post('/rooms/:code/join', requireTeamSession, async (c) => {
   return apiOk({ code, participantId: result.participantId, token: result.token }, 201);
 });
 
+/** A big screen joins with just the code (and the team session). No name, no participant. */
+api.post('/rooms/:code/display', requireTeamSession, async (c) => {
+  const env = c.env as ConfiguredEnv;
+  if (await limited(env.JOIN_LIMITER, `join:${clientIp(c.req.raw)}`)) {
+    return apiError('rate_limited');
+  }
+  const code = normalizeRoomCode(c.req.param('code') ?? '');
+  if (!code) return apiError('room_not_found');
+  const result = await env.ROOMS.get(env.ROOMS.idFromName(code)).addDisplay();
+  if (!result.ok) return apiError(result.error);
+  return apiOk({ code, token: result.token }, 201);
+});
+
 /**
  * WebSocket upgrade. Checked here, before anything reaches a room:
  * same-origin (no cross-site WebSocket hijacking), a rate limit, a valid

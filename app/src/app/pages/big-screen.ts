@@ -18,6 +18,7 @@ import {
   type RoomEvent,
   type RoomState,
 } from '@lunchrad/shared';
+import { Api, ApiFailure } from '../core/api';
 import { confettiBurst } from '../core/confetti';
 import { RoomConnection } from '../core/room-connection';
 import { DeviceStore } from '../core/storage';
@@ -45,11 +46,11 @@ interface WakeLock {
 }
 
 /**
- * /scherm/CODE#token: the room on a TV or laptop. It follows the room's
- * phases (lobby, reel, vote, result) and never needs a touch. The display
- * token in the URL fragment never reaches the server in a request line or a
- * Referer; it is moved to sessionStorage and removed from the address bar.
- * The server treats this connection as read-only (see Room.handleDisplayHello).
+ * /scherm/CODE: the room on a TV or laptop. It follows the room's phases
+ * (lobby, reel, vote, result) and never needs a touch. It joins with the
+ * room code alone (and the team session) and gets a read-only display token;
+ * it is not a participant and does not appear under "Personen". The server
+ * treats this connection as read-only (see Room.handleDisplayHello).
  */
 @Component({
   selector: 'app-big-screen',
@@ -57,13 +58,15 @@ interface WakeLock {
   imports: [RoomCode, QrCode, Reel, TeamKeyForm, RouterLink, ThemeToggle],
   template: `
     @let validCode = roomCode();
-    @if (!validCode || !token()) {
+    @if (!validCode || missing()) {
       <section class="panel message">
         <p>{{ t.noToken }}</p>
         <a routerLink="/" class="button secondary">{{ t.home }}</a>
       </section>
     } @else if (!hasTeam()) {
       <app-team-key-form (done)="onTeam()" />
+    } @else if (!token()) {
+      <p class="muted message" role="status">{{ waiting }}</p>
     } @else if (connection()?.finished(); as reason) {
       <section class="panel message">
         <p class="big">{{ reason === 'gone' ? t.replaced : t.closed }}</p>
@@ -400,6 +403,7 @@ export class BigScreen implements OnInit {
   readonly code = input.required<string>();
 
   private readonly store = inject(DeviceStore);
+  private readonly api = inject(Api);
   private readonly toasts = inject(Toasts);
   protected readonly t = nl.display;
   protected readonly appName = nl.appName;
@@ -408,6 +412,8 @@ export class BigScreen implements OnInit {
   protected readonly waiting = nl.room.connecting;
   protected readonly roomCode = computed(() => normalizeRoomCode(this.code()));
   protected readonly token = signal<string | null>(null);
+  /** The room does not exist (any more). */
+  protected readonly missing = signal(false);
   protected readonly hasTeam = signal(this.store.teamToken() !== null);
   protected readonly connection = signal<RoomConnection | null>(null);
   protected readonly fullscreen = signal(false);
@@ -452,7 +458,7 @@ export class BigScreen implements OnInit {
 
   ngOnInit(): void {
     // Inputs (the room code) are available from here on, not in the constructor.
-    this.readToken();
+    void this.readToken();
   }
 
   constructor() {
@@ -475,6 +481,13 @@ export class BigScreen implements OnInit {
 
     effect(() => {
       if (this.hasTeam() && this.token() && this.roomCode()) untracked(() => this.connect());
+    });
+
+    // A finished or replaced screen forgets its token; a reload asks for a fresh one.
+    effect(() => {
+      const code = this.roomCode();
+      if (code && this.connection()?.finished())
+        untracked(() => this.store.forgetDisplayToken(code));
     });
 
     // Countdown restarts from every snapshot the server sends.
@@ -506,6 +519,7 @@ export class BigScreen implements OnInit {
 
   protected onTeam(): void {
     this.hasTeam.set(true);
+    void this.readToken();
   }
 
   protected heading(code: string): string {
@@ -566,27 +580,23 @@ export class BigScreen implements OnInit {
     }
   }
 
-  private readToken(): void {
+  /** A token saved by the home screen's big-screen button, or a fresh one for this code. */
+  private async readToken(): Promise<void> {
     const code = this.roomCode();
     if (!code) return;
-    const key = `lunchrad.display.${code}`;
-    const fromHash = location.hash.slice(1);
-    if (TOKEN.test(fromHash)) {
-      try {
-        sessionStorage.setItem(key, fromHash);
-      } catch {
-        // Storage blocked: the token only lives in this page.
-      }
-      // Out of the address bar, the history and any screenshot of the URL.
-      history.replaceState(history.state, '', location.pathname);
-      this.token.set(fromHash);
+    const stored = this.store.displayToken(code);
+    if (stored && TOKEN.test(stored)) {
+      this.token.set(stored);
       return;
     }
+    if (!this.store.teamToken()) return; // After the team key, onTeam() asks again.
     try {
-      const stored = sessionStorage.getItem(key);
-      if (stored && TOKEN.test(stored)) this.token.set(stored);
-    } catch {
-      // Ignore.
+      const creds = await this.api.joinDisplay(code);
+      this.store.saveDisplayToken(creds.code, creds.token);
+      this.token.set(creds.token);
+    } catch (error) {
+      if (error instanceof ApiFailure && error.code === 'unauthorized') this.hasTeam.set(false);
+      else this.missing.set(true);
     }
   }
 
