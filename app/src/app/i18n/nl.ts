@@ -50,6 +50,20 @@ export const nl = {
     newPlace: 'nieuwe plek',
   },
 
+  saveToList: {
+    title: 'Opslaan in lijst',
+    back: 'Terug naar de kamer',
+    intro:
+      'Kies in welke lijsten dit restaurant staat. Nieuwe kamers beginnen met de gekozen lijst.',
+    loading: 'Lijsten laden…',
+    count: (n: number) => (n === 1 ? '1 restaurant' : `${n} restaurants`),
+    save: 'Opslaan',
+    saved: (name: string, lists: number) =>
+      lists === 0
+        ? `${name} staat in geen enkele lijst`
+        : `${name} opgeslagen in ${lists === 1 ? '1 lijst' : `${lists} lijsten`}`,
+  },
+
   theme: {
     short: 'Thema',
     names: { system: 'automatisch', light: 'licht', dark: 'donker' },
@@ -152,6 +166,8 @@ export const nl = {
     confirmRemove: (name: string) => `${name} van het rad halen?`,
     howBoostWorks: 'Een boost geeft een restaurant een extra vak op het rad. Je hebt er één.',
     locked: 'Het rad is gedraaid: de lijst en de boosts zitten op slot.',
+    saveToList: 'Opslaan in lijst',
+    saveToListLabel: (name: string) => `${name} opslaan in een lijst`,
     newPlace: {
       label: 'Nieuwe plekken voorrang',
       hint: 'Restaurants waar jullie nog nooit zijn uitgekomen krijgen een extra vak op het rad.',
@@ -391,6 +407,7 @@ export const nl = {
         make_default: 'standaard gemaakt',
         close: 'gesloten',
         rotate: 'vernieuwd',
+        save_from_room: 'opgeslagen vanuit een kamer',
         clear: 'alles gewist',
       } as Record<string, string>,
     },

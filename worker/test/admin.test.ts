@@ -433,3 +433,59 @@ describe('audit log', () => {
     expect((await adminCall(token, '/audit?before=-1')).status).toBe(400);
   });
 });
+
+describe('saving a room restaurant to lists', () => {
+  it('creates it when new, adds it to the chosen lists and is audited', async () => {
+    const { presets } = await overview();
+    const def = presets.find((p) => p.isDefault);
+    if (!def) throw new Error('no default');
+    expect((await adminCall(token, '/me')).status).toBe(200);
+
+    const res = await adminJson(token, '/restaurants/from-room', {
+      restaurant: { name: 'Uit de kamer', categories: ['Soep'], mapsUrl: null },
+      presetIds: [def.id],
+    });
+    expect(res.status).toBe(200);
+    const after = (await res.json()) as AdminOverview;
+    const saved = after.restaurants.find((r) => r.name === 'Uit de kamer');
+    expect(saved).toMatchObject({ categories: ['Soep'], presetIds: [def.id] });
+    expect(after.presets.find((p) => p.id === def.id)?.restaurantIds.at(-1)).toBe(saved?.id);
+    expect((await audit()).entries[0]).toMatchObject({
+      action: 'save_from_room',
+      detail: { name: 'Uit de kamer', created: true },
+    });
+
+    // Same name again (other case): no duplicate; an empty choice takes it out of every list.
+    const again = await adminJson(token, '/restaurants/from-room', {
+      restaurant: { name: 'UIT DE KAMER' },
+      presetIds: [],
+    });
+    const list = ((await again.json()) as AdminOverview).restaurants.filter(
+      (r) => r.name.toLowerCase() === 'uit de kamer',
+    );
+    expect(list).toHaveLength(1);
+    expect(list[0]?.presetIds).toEqual([]);
+  });
+
+  it('refuses unknown lists, bad input, and requests without Access or the admin header', async () => {
+    const bad = await adminJson(token, '/restaurants/from-room', {
+      restaurant: { name: 'X' },
+      presetIds: ['f'.repeat(16)],
+    });
+    expect(bad.status).toBe(404);
+    const xss = await adminJson(token, '/restaurants/from-room', {
+      restaurant: { name: '<b>x</b>' },
+      presetIds: [],
+    });
+    expect(await xss.json()).toEqual({ error: 'invalid_restaurant' });
+    const noHeader = await adminJson(
+      token,
+      '/restaurants/from-room',
+      { restaurant: { name: 'X' }, presetIds: [] },
+      'POST',
+      { adminHeader: false },
+    );
+    expect(noHeader.status).toBe(403);
+    expect((await adminCall(null, '/me')).status).toBe(401);
+  });
+});

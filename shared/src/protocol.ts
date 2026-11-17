@@ -18,6 +18,11 @@ export const LIMITS = {
   minRestaurantsToSpin: 2,
   /** How long the reel animation runs, the same on every phone. */
   spinDurationMs: 8000,
+  /**
+   * The reel opens on every phone at once, then starts this much later, so a
+   * phone that is a bit slow to receive the spin still sees it from the start.
+   */
+  spinLeadMs: 1500,
   /** How long the respin vote stays open. */
   voteDurationMs: 60_000,
   /** At most this many respins per room. */

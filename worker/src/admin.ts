@@ -21,6 +21,8 @@ import {
   normalizeRoomCode,
   presetInput,
   presetRestaurantsInput,
+  saveFromRoomInput,
+  PRESET_MAX_RESTAURANTS,
   restaurantInput,
   acceptableTeamKey,
   teamKeyInput,
@@ -145,6 +147,9 @@ function validId(c: AdminContext): string | null {
 
 admin.get('/overview', (c) => overview(c));
 
+/** For the room screen: is this device logged in as an admin right now? */
+admin.get('/me', (c) => ok({ email: c.get('admin').email }));
+
 // ---------- Restaurants ----------
 
 type CleanRestaurant =
@@ -246,6 +251,99 @@ admin.delete('/restaurants/:id', async (c) => {
     entityId: id,
     detail: { name: before.name },
   });
+});
+
+/**
+ * From a room: save a restaurant to the catalogue (matched by name, created
+ * when new) and set exactly which lists it is in. One batch, one audit row.
+ */
+admin.post('/restaurants/from-room', async (c) => {
+  const parsed = saveFromRoomInput.safeParse(await body(c));
+  if (!parsed.success) return fail('bad_request');
+  const input = cleanRestaurant(parsed.data.restaurant);
+  if (!input.ok) return fail(input.error);
+  const wanted = new Set(parsed.data.presetIds);
+  const db = c.env.DB;
+  const key = restaurantNameKey(input.name);
+
+  const existing = await db
+    .prepare('SELECT id FROM restaurant WHERE name_key = ?')
+    .bind(key)
+    .first<{ id: string }>();
+  if (!existing && (await restaurantCount(db)) >= CATALOGUE_MAX_RESTAURANTS) {
+    return fail('catalogue_full');
+  }
+  const restaurantId = existing?.id ?? randomId();
+
+  const { results: presets } = await db
+    .prepare(
+      `SELECT p.id, p.name,
+              (SELECT count(*) FROM preset_restaurant WHERE preset_id = p.id) AS size,
+              (SELECT count(*) FROM preset_restaurant WHERE preset_id = p.id AND restaurant_id = ?) AS has,
+              (SELECT coalesce(max(position), -1) FROM preset_restaurant WHERE preset_id = p.id) AS last
+         FROM preset p`,
+    )
+    .bind(restaurantId)
+    .all<{ id: string; name: string; size: number; has: number; last: number }>();
+  for (const id of wanted) {
+    if (!presets.some((p) => p.id === id)) return fail('not_found');
+  }
+
+  const now = Date.now();
+  const statements: D1PreparedStatement[] = [];
+  if (!existing) {
+    statements.push(
+      db
+        .prepare(
+          'INSERT INTO restaurant (id, name, name_key, categories, maps_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        )
+        .bind(
+          restaurantId,
+          input.name,
+          key,
+          JSON.stringify(input.categories),
+          input.mapsUrl,
+          now,
+          now,
+        ),
+    );
+  }
+  const added: string[] = [];
+  const removed: string[] = [];
+  for (const p of presets) {
+    if (wanted.has(p.id) && p.has === 0) {
+      if (p.size >= PRESET_MAX_RESTAURANTS) return fail('too_many_restaurants');
+      statements.push(
+        db
+          .prepare(
+            'INSERT INTO preset_restaurant (preset_id, restaurant_id, position) VALUES (?, ?, ?)',
+          )
+          .bind(p.id, restaurantId, p.last + 1),
+      );
+      added.push(p.name);
+    } else if (!wanted.has(p.id) && p.has > 0) {
+      statements.push(
+        db
+          .prepare('DELETE FROM preset_restaurant WHERE preset_id = ? AND restaurant_id = ?')
+          .bind(p.id, restaurantId),
+      );
+      removed.push(p.name);
+    }
+    if ((wanted.has(p.id) && p.has === 0) || (!wanted.has(p.id) && p.has > 0)) {
+      statements.push(db.prepare('UPDATE preset SET updated_at = ? WHERE id = ?').bind(now, p.id));
+    }
+  }
+  return change(
+    c,
+    statements,
+    {
+      action: 'save_from_room',
+      entity: 'restaurant',
+      entityId: restaurantId,
+      detail: { name: input.name, created: !existing, addedTo: added, removedFrom: removed },
+    },
+    'restaurant_exists',
+  );
 });
 
 // ---------- Presets ----------

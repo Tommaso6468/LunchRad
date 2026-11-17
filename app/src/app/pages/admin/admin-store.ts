@@ -20,7 +20,14 @@ export class AdminStore {
   readonly busy = signal(false);
 
   async load(): Promise<void> {
-    await this.run(() => this.api.overview());
+    if (await this.run(() => this.api.overview())) {
+      // Lets the room screen offer "Opslaan in lijst" on this device (it checks with the server first).
+      try {
+        localStorage.setItem('lunchrad.admin', '1');
+      } catch {
+        // Ignore.
+      }
+    }
   }
 
   /** Runs a change; on success shows `done` (if given) and stores the new overview. */

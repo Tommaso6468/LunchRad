@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import {
   ADMIN_ERRORS,
+  adminMe,
   adminOverview,
   adminRooms,
   auditPage,
@@ -13,6 +14,7 @@ import {
   type AuditPage,
   type HistoryPage,
   type RestaurantInput,
+  type SaveFromRoomInput,
   type TeamKeyStatus,
 } from '@lunchrad/shared';
 
@@ -43,6 +45,15 @@ function isAdminError(value: unknown): value is AdminError {
  */
 @Injectable({ providedIn: 'root' })
 export class AdminApi {
+  /** Throws unless this device is logged in as an admin (Cloudflare Access). */
+  me(): Promise<{ email: string }> {
+    return this.request('GET', '/me', undefined, adminMe);
+  }
+
+  saveFromRoom(input: SaveFromRoomInput): Promise<AdminOverview> {
+    return this.request('POST', '/restaurants/from-room', input, adminOverview);
+  }
+
   overview(): Promise<AdminOverview> {
     return this.request('GET', '/overview', undefined, adminOverview);
   }

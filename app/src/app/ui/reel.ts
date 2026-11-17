@@ -373,9 +373,11 @@ export class Reel {
     const winner = spin.reel[spin.winnerIndex] ?? spin.winnerId;
     const name = this.names().get(winner) ?? '';
     const duration = this.reduceMotion ? REDUCED_MS : spin.durationMs;
-    const elapsed = this.reduceMotion
-      ? (spin.elapsedMs / spin.durationMs) * REDUCED_MS
-      : spin.elapsedMs;
+    // Negative elapsed time is the lead-in: the reel waits that long, then runs.
+    const elapsed =
+      this.reduceMotion && spin.elapsedMs > 0
+        ? (spin.elapsedMs / spin.durationMs) * REDUCED_MS
+        : spin.elapsedMs;
 
     // Travel upwards through the indices (names move down) for a few full
     // turns, ending exactly on the winning row.
@@ -396,7 +398,7 @@ export class Reel {
     const startedAt = performance.now() - elapsed;
     let lastRow = Math.round(start);
     const step = (now: number) => {
-      const t = Math.min(1, (now - startedAt) / duration);
+      const t = Math.min(1, Math.max(0, (now - startedAt) / duration));
       const position = start + (target - start) * easeOutQuart(t);
       this.position.set(position);
       if (Math.round(position) !== lastRow) {

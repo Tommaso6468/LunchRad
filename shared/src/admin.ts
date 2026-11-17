@@ -53,6 +53,18 @@ export type RestaurantInput = z.infer<typeof restaurantInput>;
 
 export const presetInput = z.strictObject({ name: shortText });
 
+/**
+ * Save a restaurant someone added in a room to the catalogue and set exactly
+ * which lists it is in. Matched by name; created when it is new.
+ */
+export const saveFromRoomInput = z.strictObject({
+  restaurant: restaurantInput,
+  presetIds: z.array(id).check(z.maxLength(PRESETS_MAX)),
+});
+export type SaveFromRoomInput = z.infer<typeof saveFromRoomInput>;
+
+export const adminMe = z.strictObject({ email: z.string() });
+
 export const presetRestaurantsInput = z.strictObject({
   restaurantIds: z.array(id).check(z.maxLength(PRESET_MAX_RESTAURANTS)),
 });

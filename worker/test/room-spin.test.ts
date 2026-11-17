@@ -111,7 +111,7 @@ describe('during and after the spin', () => {
     hostSocket.send({ type: 'start_spin' });
     const spinning = await tomSocket.stateWhere((s) => s.phase === 'spinning');
 
-    await advance(host.code, LIMITS.spinDurationMs - 500);
+    await advance(host.code, LIMITS.spinLeadMs + LIMITS.spinDurationMs - 500);
     expect(tomSocket.messages.some((m) => m.type === 'state' && m.state.phase === 'voting')).toBe(
       false,
     );
@@ -122,13 +122,21 @@ describe('during and after the spin', () => {
     expect(result.spin?.elapsedMs).toBe(LIMITS.spinDurationMs);
   });
 
+  it('starts after a lead-in, so every phone sees the reel from the start', async () => {
+    const { hostSocket, tomSocket } = await room();
+    hostSocket.send({ type: 'start_spin' });
+    const spinning = await tomSocket.stateWhere((s) => s.phase === 'spinning');
+    expect(spinning.spin?.elapsedMs).toBeLessThanOrEqual(-LIMITS.spinLeadMs + 100);
+    expect(spinning.spin?.elapsedMs).toBeGreaterThan(-LIMITS.spinLeadMs - 100);
+  });
+
   it('a phone that reconnects mid-spin gets how far the animation is', async () => {
     const { host, hostSocket } = await room();
     hostSocket.send({ type: 'start_spin' });
     await hostSocket.stateWhere((s) => s.phase === 'spinning');
     await runInDurableObject(roomStub(host.code), (r: Room) => {
       const base = r.now();
-      r.now = () => base + 2000;
+      r.now = () => base + LIMITS.spinLeadMs + 2000;
     });
     const again = await connectAs(host);
     const welcome = again.messages[0];

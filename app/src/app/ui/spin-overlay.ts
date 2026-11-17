@@ -197,6 +197,10 @@ export class SpinOverlay {
 
   open(): void {
     const el = this.dialog().nativeElement;
+    // Whatever else is open (adding a restaurant, a confirmation sheet) gives way to the reel.
+    for (const other of document.querySelectorAll<HTMLDialogElement>('dialog[open]')) {
+      if (other !== el) other.close();
+    }
     if (!el.open) el.showModal();
     this.isOpen.set(true);
   }

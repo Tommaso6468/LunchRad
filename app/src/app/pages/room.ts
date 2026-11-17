@@ -8,6 +8,7 @@ import {
   input,
   signal,
   untracked,
+  viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
@@ -17,6 +18,7 @@ import {
   type RoomState,
   type SocketError,
 } from '@lunchrad/shared';
+import { AdminApi } from '../core/admin-api';
 import { Api } from '../core/api';
 import { RoomConnection } from '../core/room-connection';
 import { DeviceStore } from '../core/storage';
@@ -25,6 +27,7 @@ import { Toasts } from '../core/toasts';
 import { nl } from '../i18n/nl';
 import { bindInput, errorText } from '../ui/forms';
 import { AddRestaurantDialog, type NewRestaurant } from '../ui/add-restaurant-dialog';
+import { SaveToListDialog } from '../ui/save-to-list-dialog';
 import { ThemeToggle } from '../ui/theme-toggle';
 import { ParticipantList } from '../ui/participant-list';
 import { QrCode } from '../ui/qr-code';
@@ -46,6 +49,7 @@ import { TeamKeyForm } from './team-key-form';
     ParticipantList,
     SpinOverlay,
     ThemeToggle,
+    SaveToListDialog,
   ],
   template: `
     @let validCode = roomCode();
@@ -162,9 +166,14 @@ import { TeamKeyForm } from './team-key-form';
               (remove)="removeRestaurant($event)"
               (addRequested)="addDialog.open()"
               (newPlace)="setNewPlace($event)"
+              [canSaveToList]="isAdmin()"
+              (saveToList)="openSaveToList($event)"
             />
           </div>
           <app-add-restaurant-dialog #addDialog (added)="addRestaurant($event)" />
+          @if (isAdmin()) {
+            <app-save-to-list-dialog />
+          }
 
           <div
             id="panel-people"
@@ -243,6 +252,7 @@ export class Room {
   private readonly api = inject(Api);
   private readonly store = inject(DeviceStore);
   private readonly toasts = inject(Toasts);
+  private readonly adminApi = inject(AdminApi);
   protected readonly feedback = inject(Feedback);
 
   protected readonly t = nl;
@@ -284,6 +294,7 @@ export class Room {
   });
 
   constructor() {
+    void this.checkAdmin();
     const clock = setInterval(() => {
       this.now.set(Date.now());
       this.warnIfClosingSoon();
@@ -368,6 +379,31 @@ export class Room {
 
   protected startSpin(): void {
     this.connection()?.send({ type: 'start_spin' });
+  }
+
+  /** Logged in as admin on this device (checked with the server, never assumed). */
+  protected readonly isAdmin = signal(false);
+  private readonly saveDialog = viewChild(SaveToListDialog);
+
+  private async checkAdmin(): Promise<void> {
+    try {
+      if (localStorage.getItem('lunchrad.admin') !== '1') return;
+    } catch {
+      return;
+    }
+    try {
+      await this.adminApi.me();
+      this.isAdmin.set(true);
+    } catch {
+      this.isAdmin.set(false);
+    }
+  }
+
+  protected openSaveToList(restaurantId: string): void {
+    const restaurant = this.connection()
+      ?.state()
+      ?.restaurants.find((r) => r.id === restaurantId);
+    if (restaurant) void this.saveDialog()?.open(restaurant);
   }
 
   protected setNewPlace(on: boolean): void {
