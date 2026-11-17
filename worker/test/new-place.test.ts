@@ -114,7 +114,7 @@ describe('lunch history', () => {
     const { host, hostSocket } = await room();
     hostSocket.send({ type: 'start_spin' });
     const spinning = await hostSocket.stateWhere((s) => s.phase === 'spinning');
-    await advance(host.code, LIMITS.spinDurationMs + 10);
+    await advance(host.code, LIMITS.spinLeadMs + LIMITS.spinDurationMs + 10);
     await hostSocket.stateWhere((s) => s.phase === 'voting');
     hostSocket.send({ type: 'vote', choice: 'no' });
     await advance(host.code, LIMITS.voteDurationMs + 10);

@@ -144,7 +144,7 @@ describe('the big screen', () => {
 
     hostSocket.send({ type: 'start_spin' });
     await tomSocket.stateWhere((s) => s.phase === 'spinning');
-    await advance(host.code, LIMITS.spinDurationMs + 10);
+    await advance(host.code, LIMITS.spinLeadMs + LIMITS.spinDurationMs + 10);
     const voting = await screen.stateWhere((s) => s.phase === 'voting');
     expect(voting.vote?.eligible.sort()).toEqual([host.participantId, tom.participantId].sort());
   });

@@ -677,7 +677,8 @@ export class Room extends DurableObject<Env> {
       reel,
       winnerIndex,
       winnerId: reel[winnerIndex] as string,
-      startedAt: this.now(),
+      // The reel starts after a short lead-in (see LIMITS.spinLeadMs).
+      startedAt: this.now() + LIMITS.spinLeadMs,
       durationMs: LIMITS.spinDurationMs,
     };
     await this.persistMeta();
@@ -1042,10 +1043,8 @@ export class Room extends DurableObject<Env> {
             winnerIndex: meta.spin.winnerIndex,
             winnerId: meta.spin.winnerId,
             durationMs: meta.spin.durationMs,
-            elapsedMs: Math.min(
-              meta.spin.durationMs,
-              Math.max(0, this.now() - meta.spin.startedAt),
-            ),
+            // Negative during the lead-in: the reel waits that long before it starts.
+            elapsedMs: Math.min(meta.spin.durationMs, this.now() - meta.spin.startedAt),
           }
         : null,
     };

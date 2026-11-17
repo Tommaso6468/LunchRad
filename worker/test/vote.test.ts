@@ -44,7 +44,7 @@ async function votingRoom(count: number) {
   const hostSocket = sockets[0] as TestSocket;
   hostSocket.send({ type: 'start_spin' });
   const spinning = await hostSocket.stateWhere((s) => s.phase === 'spinning');
-  await advance(host.code, LIMITS.spinDurationMs);
+  await advance(host.code, LIMITS.spinLeadMs + LIMITS.spinDurationMs);
   const voting = await hostSocket.stateWhere((s) => s.phase === 'voting');
   return { host, people, sockets, hostSocket, firstWinner: spinning.spin?.winnerId, voting };
 }
@@ -173,7 +173,7 @@ describe('limits and the end', () => {
     for (let respin = 1; respin <= LIMITS.maxRespins; respin++) {
       sockets[0]?.send({ type: 'vote', choice: 'yes' });
       await hostSocket.stateWhere((s) => s.spin?.number === respin + 1);
-      await advance(host.code, LIMITS.spinDurationMs);
+      await advance(host.code, LIMITS.spinLeadMs + LIMITS.spinDurationMs);
       if (respin < LIMITS.maxRespins)
         await hostSocket.stateWhere((s) => s.phase === 'voting' && s.spin?.number === respin + 1);
     }
@@ -192,7 +192,7 @@ describe('limits and the end', () => {
     await socket.stateWhere((s) => s.restaurants.length === 2);
     socket.send({ type: 'start_spin' });
     await socket.stateWhere((s) => s.phase === 'spinning');
-    await advance(host.code, LIMITS.spinDurationMs);
+    await advance(host.code, LIMITS.spinLeadMs + LIMITS.spinDurationMs);
     await socket.stateWhere((s) => s.phase === 'result');
   });
 

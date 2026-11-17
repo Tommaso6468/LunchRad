@@ -104,6 +104,16 @@ interface Row {
                         {{ t.mapsShort }}
                       </a>
                     }
+                    @if (canSaveToList()) {
+                      <button
+                        type="button"
+                        class="small save-to-list"
+                        [attr.aria-label]="t.saveToListLabel(r.name)"
+                        (click)="saveToList.emit(r.id)"
+                      >
+                        {{ t.saveToList }}
+                      </button>
+                    }
                     @if (r.canRemove && !locked()) {
                       <button
                         type="button"
@@ -288,6 +298,9 @@ export class RestaurantList {
   readonly toggleBoost = output<string | null>();
   readonly remove = output<{ id: string; name: string }>();
   readonly addRequested = output();
+  /** Admins (logged in on this device) can save a restaurant into lists. */
+  readonly canSaveToList = input(false);
+  readonly saveToList = output<string>();
   /** Host switches new-place mode. */
   readonly newPlace = output<boolean>();
 

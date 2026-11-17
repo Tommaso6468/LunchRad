@@ -3,13 +3,13 @@ import {
   Component,
   DestroyRef,
   computed,
-  effect,
   inject,
   input,
   output,
   signal,
 } from '@angular/core';
 import { respinNeeds, type VoteView } from '@lunchrad/shared';
+import { receivedAt } from '../core/received-at';
 import { nl } from '../i18n/nl';
 
 /**
@@ -101,7 +101,6 @@ export class VotePanel {
   readonly voted = output<'yes' | 'no'>();
 
   protected readonly t = nl.vote;
-  private readonly receivedAt = signal(performance.now());
   private readonly now = signal(performance.now());
 
   protected readonly needs = computed(() => respinNeeds(this.vote().eligible.length));
@@ -116,15 +115,10 @@ export class VotePanel {
     return null;
   });
   protected readonly remaining = computed(() =>
-    Math.max(0, this.vote().remainingMs - (this.now() - this.receivedAt())),
+    Math.max(0, this.vote().remainingMs - (this.now() - receivedAt(this.vote()))),
   );
 
   constructor() {
-    // Every new snapshot from the server restarts the local countdown from its figure.
-    effect(() => {
-      this.vote();
-      this.receivedAt.set(performance.now());
-    });
     const timer = setInterval(() => this.now.set(performance.now()), 250);
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
   }

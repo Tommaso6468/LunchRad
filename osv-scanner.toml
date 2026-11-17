@@ -1,0 +1,8 @@
+# Known vulnerabilities that are accepted for a limited time. Every entry
+# needs a reason and an end date; the scan fails again after that date so the
+# exception is reviewed. Keep in sync with scripts/security/audit-exceptions.json.
+
+[[IgnoredVulns]]
+id = "GHSA-fc5q-39xc-vjpf"
+effectiveUntil = 2026-12-17
+reason = "picomatch <=4.0.7 ReDoS via attacker-controlled glob patterns. No patched release exists yet. Dev/build tooling only (Angular build, Vite, Vitest, ESLint); not in the production bundle or Worker (npm audit --omit=dev is clean, and CI checks that strictly). Glob patterns come from our own config, never from users."
