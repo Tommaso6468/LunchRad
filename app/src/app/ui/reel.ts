@@ -379,10 +379,11 @@ export class Reel {
     const now = performance.now();
     const elapsed = spin.elapsedMs + (now - receivedAt(spin, now));
 
-    // Travel upwards through the indices (names move down) for a few full
-    // turns, ending exactly on the winning row.
+    // Travel upwards through the indices (names move down) for many full
+    // turns, ending exactly on the winning row. At least 120 rows: twice the
+    // duration at twice the speed of the first version (30 rows in 8 s).
     const start = 0;
-    const turns = Math.max(3, Math.ceil(30 / n));
+    const turns = Math.max(12, Math.ceil(120 / n));
     const target = spin.winnerIndex + n * turns;
 
     const done = () => {

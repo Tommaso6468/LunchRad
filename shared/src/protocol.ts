@@ -17,7 +17,7 @@ export const LIMITS = {
   /** A spin needs at least this many restaurants. */
   minRestaurantsToSpin: 2,
   /** How long the reel animation runs, the same on every phone. */
-  spinDurationMs: 8000,
+  spinDurationMs: 16_000,
   /**
    * The reel opens on every phone at once, then starts this much later, so a
    * phone that is a bit slow to receive the spin still sees it from the start.
