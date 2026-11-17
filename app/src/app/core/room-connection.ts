@@ -1,4 +1,5 @@
 import { computed, signal } from '@angular/core';
+import { markReceived } from './received-at';
 import {
   CLOSE_CODES,
   WS_PROTOCOL,
@@ -123,6 +124,7 @@ export class RoomConnection {
       case 'display_welcome':
         this.attempts = 0;
         this.you.set(message.type === 'welcome' ? message.you : null);
+        markReceived(message.state);
         this.state.set(message.state);
         this.status.set('open');
         clearInterval(this.pingTimer);
@@ -133,6 +135,7 @@ export class RoomConnection {
         }, PING_MS);
         break;
       case 'state':
+        markReceived(message.state);
         this.state.set(message.state);
         break;
       case 'event':

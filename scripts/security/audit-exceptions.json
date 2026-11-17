@@ -1,0 +1,6 @@
+{
+  "GHSA-fc5q-39xc-vjpf": {
+    "until": "2026-12-17",
+    "reason": "picomatch <=4.0.7 ReDoS via attacker-controlled glob patterns. No patched release yet. Dev/build tooling only; production tree is clean. Keep in sync with osv-scanner.toml."
+  }
+}

@@ -52,8 +52,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - name: Known vulnerabilities (high and critical fail the build)
-        run: npm audit --audit-level=high
+      - name: Known vulnerabilities (any in production, high and critical elsewhere; time-limited exceptions)
+        run: node scripts/security/audit.mjs
       - name: Registry signatures and provenance
         run: |
           if ! out=$(npm audit signatures 2>&1); then

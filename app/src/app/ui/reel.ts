@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import type { SpinView } from '@lunchrad/shared';
 import { Feedback } from '../core/feedback';
+import { receivedAt } from '../core/received-at';
 import { nl } from '../i18n/nl';
 
 /** Dragging the knob this far down (of the full travel) pulls the lever. */
@@ -20,7 +21,6 @@ const ROW_HEIGHT = 64;
 const VISIBLE = 5;
 /** The drum's radius: rows curve away from the window like on a real drum. */
 const RADIUS = (ROW_HEIGHT * VISIBLE) / 2.2;
-const REDUCED_MS = 1000;
 
 interface ReelRow {
   key: number;
@@ -372,17 +372,17 @@ export class Reel {
     const n = spin.reel.length;
     const winner = spin.reel[spin.winnerIndex] ?? spin.winnerId;
     const name = this.names().get(winner) ?? '';
-    const duration = this.reduceMotion ? REDUCED_MS : spin.durationMs;
-    // Negative elapsed time is the lead-in: the reel waits that long, then runs.
-    const elapsed =
-      this.reduceMotion && spin.elapsedMs > 0
-        ? (spin.elapsedMs / spin.durationMs) * REDUCED_MS
-        : spin.elapsedMs;
+    const duration = spin.durationMs;
+    // Where the server's clock is now: its figure was right when the message
+    // arrived, which may be a while before this component saw it. Negative
+    // during the lead-in: the reel waits that long, then runs.
+    const now = performance.now();
+    const elapsed = spin.elapsedMs + (now - receivedAt(spin, now));
 
     // Travel upwards through the indices (names move down) for a few full
     // turns, ending exactly on the winning row.
     const start = 0;
-    const turns = this.reduceMotion ? 1 : Math.max(3, Math.ceil(30 / n));
+    const turns = Math.max(3, Math.ceil(30 / n));
     const target = spin.winnerIndex + n * turns;
 
     const done = () => {
@@ -395,7 +395,16 @@ export class Reel {
       return;
     }
     this.announcement.set(nl.reel.spinning);
-    const startedAt = performance.now() - elapsed;
+    const startedAt = now - elapsed;
+    if (this.reduceMotion) {
+      // No scrolling drum, but the same landing moment as every other phone.
+      const wait = (now: number) => {
+        if (now - startedAt < duration) this.frame = requestAnimationFrame(wait);
+        else done();
+      };
+      this.frame = requestAnimationFrame(wait);
+      return;
+    }
     let lastRow = Math.round(start);
     const step = (now: number) => {
       const t = Math.min(1, Math.max(0, (now - startedAt) / duration));
