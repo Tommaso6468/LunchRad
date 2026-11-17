@@ -7,6 +7,17 @@ interface SiteverifyResult {
   success?: unknown;
   hostname?: unknown;
   action?: unknown;
+  'error-codes'?: unknown;
+}
+
+/** Only Cloudflare's own short codes and names reach the logs; never the token, secret or IP. */
+function codes(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value
+        .filter((c): c is string => typeof c === 'string')
+        .slice(0, 5)
+        .map((c) => c.slice(0, 60))
+    : [];
 }
 
 export async function verifyTurnstile(options: {
@@ -29,16 +40,36 @@ export async function verifyTurnstile(options: {
       body,
       signal: AbortSignal.timeout(5000),
     });
-    if (!response.ok) return false;
+    if (!response.ok) {
+      console.warn('Turnstile failed', { reason: 'http', status: response.status });
+      return false;
+    }
     result = await response.json();
-  } catch {
+  } catch (err) {
     // Network errors or timeouts fail closed: no bot check, no room.
+    console.warn('Turnstile failed', { reason: 'network', name: (err as Error).name });
     return false;
   }
 
-  if (result.success !== true) return false;
+  if (result.success !== true) {
+    // e.g. invalid-input-secret (secret of another widget), timeout-or-duplicate.
+    console.warn('Turnstile failed', { reason: 'rejected', codes: codes(result['error-codes']) });
+    return false;
+  }
   // Cloudflare's dummy test keys return placeholder hostname/action values, so
   // these checks only run where real keys are used (staging and production).
   if (options.expectedHostname === null) return true;
-  return result.hostname === options.expectedHostname && result.action === TURNSTILE_ACTION;
+  if (result.hostname !== options.expectedHostname) {
+    console.warn('Turnstile failed', {
+      reason: 'hostname',
+      expected: options.expectedHostname,
+      got: typeof result.hostname === 'string' ? result.hostname.slice(0, 100) : null,
+    });
+    return false;
+  }
+  if (result.action !== TURNSTILE_ACTION) {
+    console.warn('Turnstile failed', { reason: 'action' });
+    return false;
+  }
+  return true;
 }
